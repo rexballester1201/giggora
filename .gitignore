@@ -39,3 +39,9 @@ broadcast/
 *.log
 .DS_Store
 coverage/
+
+# ---- contracts ----
+contracts/lib/
+contracts/out/
+contracts/cache/
+contracts/broadcast/

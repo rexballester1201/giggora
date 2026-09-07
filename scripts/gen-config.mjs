@@ -80,11 +80,32 @@ const forkConfig = {
   shanghaiTime: 0,
 };
 
-if (cfg.genesis.hardfork !== "shanghai") {
+const HARDFORKS = ["shanghai", "cancun"];
+if (!HARDFORKS.includes(cfg.genesis.hardfork)) {
   die(
-    `genesis.hardfork is "${cfg.genesis.hardfork}". Only "shanghai" is supported.\n` +
-      `  Cancun breaks QBFT (EIP-4788 beacon roots). See chain.config.json _hardforkNote.`
+    `genesis.hardfork is "${cfg.genesis.hardfork}". Supported: ${HARDFORKS.join(", ")}.`
   );
+}
+
+if (cfg.genesis.hardfork === "cancun") {
+  forkConfig.cancunTime = 0;
+
+  // Cancun makes a system call to the EIP-4788 beacon-roots contract on every
+  // block. Giggora has no beacon chain, but the CONTRACT MUST STILL EXIST or
+  // Besu logs "Invalid system call address" every block. Pre-deploying it is
+  // the documented fix for private networks, so refuse to build a Cancun
+  // genesis without it rather than shipping a chain that errors every block.
+  const sys = cfg.genesis.systemContracts?.beaconRoots;
+  if (!sys?.address || !sys?.code) {
+    die(
+      `hardfork "cancun" requires genesis.systemContracts.beaconRoots (address + code).\n` +
+        `  Without the EIP-4788 contract pre-deployed, Besu errors on every block.`
+    );
+  }
+  const sysKey = sys.address.toLowerCase().replace(/^0x/, "");
+  if (alloc[sysKey]) die(`system contract ${sys.address} collides with a supply allocation`);
+  // Zero balance: a system contract must not affect total supply.
+  alloc[sysKey] = { balance: "0", code: sys.code };
 }
 
 // Sanity check: a fixed base fee must equal the min gas price, or wallets that

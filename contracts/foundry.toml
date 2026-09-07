@@ -1,0 +1,33 @@
+[profile.default]
+src = "src"
+out = "out"
+test = "test"
+script = "script"
+libs = ["node_modules"]
+
+# MUST match the chain's hardfork (blockchain/config/chain.config.json ->
+# genesis.hardfork). Giggora runs Cancun.
+#
+# Cancun is not optional in practice: OpenZeppelin 5.6.x emits `mcopy` (a Cancun
+# opcode) in utils/Bytes.sol, so a Shanghai-only chain cannot compile current
+# OpenZeppelin at all — it fails with
+#   "The 'mcopy' instruction is only available for Cancun-compatible VMs".
+#
+# Running Cancun on a non-PoS QBFT chain works only because the EIP-4788
+# beacon-roots contract is pre-deployed in the genesis alloc. Without it Besu
+# system-calls an empty address and logs "Invalid system call address" every
+# block. See chain.config.json -> genesis.systemContracts.beaconRoots.
+evm_version = "cancun"
+
+solc_version = "0.8.28"
+optimizer = true
+optimizer_runs = 200
+
+remappings = [
+    "@openzeppelin/contracts/=node_modules/@openzeppelin/contracts/",
+    "forge-std/=lib/forge-std/src/",
+]
+
+[fmt]
+line_length = 100
+tab_width = 4

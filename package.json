@@ -15,7 +15,12 @@
     "logs": "docker compose logs -f",
     "verify": "node scripts/verify-network.mjs",
     "clean": "docker compose down -v && rm -rf blockchain/nodes blockchain/genesis/networkFiles blockchain/genesis/genesis.json",
-    "config": "node scripts/gen-config.mjs"
+    "config": "node scripts/gen-config.mjs",
+    "setup:contracts": "bash scripts/setup-contracts.sh",
+    "contracts:build": "bash scripts/forge.sh build",
+    "contracts:test": "bash scripts/forge.sh test",
+    "contracts:deploy": "node scripts/deploy-contracts.mjs",
+    "verify:all": "node scripts/verify-network.mjs && bash scripts/forge.sh test && node scripts/deploy-contracts.mjs"
   },
   "devDependencies": {
     "viem": "2.56.3"

@@ -10,7 +10,7 @@
 #
 # ...or use the npm equivalents: npm run genesis / start / stop / verify / clean
 
-.PHONY: help config genesis start stop restart logs status test clean reset
+.PHONY: help config genesis start stop restart logs status test clean reset setup-contracts contracts contracts-test deploy-contract
 
 help:
 	@echo ""
@@ -26,6 +26,12 @@ help:
 	@echo "  make test      Run the Phase 2 acceptance test"
 	@echo "  make clean     Stop and delete ALL chain data, keys, and genesis"
 	@echo "  make reset     clean + genesis + start"
+	@echo ""
+	@echo "  Contracts:"
+	@echo "  make setup-contracts  Install OpenZeppelin + forge-std"
+	@echo "  make contracts        Compile contracts"
+	@echo "  make contracts-test   Run the Foundry test suite"
+	@echo "  make deploy-contract  Deploy samples to the devnet and verify logs"
 	@echo ""
 
 config:
@@ -61,3 +67,15 @@ clean:
 	rm -rf blockchain/nodes blockchain/genesis/networkFiles blockchain/genesis/genesis.json
 
 reset: clean genesis start
+
+setup-contracts:
+	bash scripts/setup-contracts.sh
+
+contracts:
+	bash scripts/forge.sh build
+
+contracts-test:
+	bash scripts/forge.sh test
+
+deploy-contract:
+	node scripts/deploy-contracts.mjs

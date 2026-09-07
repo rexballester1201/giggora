@@ -46,8 +46,15 @@
     "baseFeePerGas": "1000000000",
     "fixedBaseFee": true,
     "_fixedBaseFeeNote": "REQUIRED, and load-bearing. Without it the EIP-1559 base fee decays ~12.5% per empty block. On an idle chain it falls below min-gas-price (1 gwei), and since eth_maxPriorityFeePerGas returns 0 here, wallets estimate a maxFeePerGas UNDER the node's floor. Transactions are then accepted into the pool and silently never mined — MetaMask just hangs. fixedBaseFee pins the base fee at baseFeePerGas forever, so base fee == min gas price and estimation always clears the floor. Preferred over zeroBaseFee, which would make gas free and the chain trivially spammable.",
-    "hardfork": "shanghai",
-    "_hardforkNote": "Shanghai, NOT Cancun. Shanghai gives PUSH0, which Solidity >=0.8.20 emits by default. Cancun (cancunTime) triggers EIP-4788 beacon-root system calls that do not exist on a non-PoS QBFT chain and produce 'Invalid system call address' errors every block (besu issue #9379). Contracts MUST be compiled with evm_version = 'shanghai'."
+    "hardfork": "cancun",
+    "_hardforkNote": "Cancun is required in practice: OpenZeppelin 5.6.x emits mcopy (a Cancun opcode) in utils/Bytes.sol, so a Shanghai-only chain cannot compile current OpenZeppelin at all. Cancun on a non-PoS chain works ONLY because the EIP-4788 beacon-roots contract is pre-deployed below; without it Besu makes a system call to an empty address and logs 'Invalid system call address' every block. Set this back to 'shanghai' to fall back (contracts would then need OpenZeppelin <=5.1 and evm_version='shanghai').",
+    "systemContracts": {
+      "beaconRoots": {
+        "address": "0x000F3df6D732807Ef1319fB7B8bB8522d0Beac02",
+        "code": "0x3373fffffffffffffffffffffffffffffffffffffffe14604d57602036146024575f5ffd5b5f35801560495762001fff810690815414603c575f5ffd5b62001fff01545f5260205ff35b5f5ffd5b62001fff42064281555f359062001fff015500",
+        "_note": "EIP-4788 beacon roots contract, runtime bytecode (97 bytes, init prefix 60618060095f395ff3 stripped). Cancun performs a system call here every block. Giggora has no beacon chain, but the contract must still EXIST. Pre-deploying it in genesis is the documented fix for private networks. Zero balance: does not affect total supply."
+      }
+    }
   },
   "gas": {
     "minGasPriceWei": "1000000000",

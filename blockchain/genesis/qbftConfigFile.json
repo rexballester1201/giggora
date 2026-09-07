@@ -13,6 +13,7 @@
       "berlinBlock": 0,
       "londonBlock": 0,
       "shanghaiTime": 0,
+      "cancunTime": 0,
       "fixedBaseFee": true,
       "qbft": {
         "blockperiodseconds": 2,
@@ -47,6 +48,10 @@
       },
       "3c44cdddb6a900fa2b585dd299e03d12fa4293bc": {
         "balance": "25000000000000000000000000"
+      },
+      "000f3df6d732807ef1319fb7b8bb8522d0beac02": {
+        "balance": "0",
+        "code": "0x3373fffffffffffffffffffffffffffffffffffffffe14604d57602036146024575f5ffd5b5f35801560495762001fff810690815414603c575f5ffd5b62001fff01545f5260205ff35b5f5ffd5b62001fff42064281555f359062001fff015500"
       }
     }
   },

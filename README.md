@@ -16,8 +16,9 @@ depending on Ethereum, BSC, or Polygon.
 | Total supply | 1,000,000,000 GIG |
 | Devnet chain ID | 4043 |
 
-> **Status: Phase 2 of 8 COMPLETE.** The chain, genesis, and local network are implemented,
-> running, and verified end to end by `node scripts/verify-network.mjs` (7/7 checks).
+> **Status: Phases 1-3 of 8 COMPLETE.** The chain is running and verified end to end
+> (7/7 network checks), and the ERC-20/721/1155 sample contracts are deployed to it
+> (28/28 unit tests, 12/12 on-chain checks).
 > The indexer, explorer API, and explorer UI are not yet built.
 > See [docs/architecture.md](docs/architecture.md) for the full plan.
 
@@ -115,6 +116,10 @@ genesis if they do not.
 | — | `npm stop` | `make stop` | Stop, keep chain data |
 | `node scripts/verify-network.mjs` | `npm run verify` | `make test` | Acceptance test |
 | — | `npm run clean` | `make clean` | Delete all chain data and keys |
+| `bash scripts/setup-contracts.sh` | `npm run setup:contracts` | `make setup-contracts` | Install OpenZeppelin + forge-std |
+| `bash scripts/forge.sh build` | `npm run contracts:build` | `make contracts` | Compile contracts |
+| `bash scripts/forge.sh test` | `npm run contracts:test` | `make contracts-test` | Foundry test suite |
+| `node scripts/deploy-contracts.mjs` | `npm run contracts:deploy` | `make deploy-contract` | Deploy + verify on chain |
 
 ---
 
@@ -143,14 +148,18 @@ Validators are never publicly reachable. The RPC node holds no validator key, an
 Every item here was hit and fixed during Phase 2. They are all load-bearing — if you
 "simplify" one away, the chain breaks in a way that is genuinely hard to diagnose.
 
-**1. Contracts must target Shanghai, not Cancun.**
-Giggora runs the Shanghai fork. `cancunTime` on a QBFT chain makes Besu attempt EIP-4788
-beacon-root system calls that only exist on a proof-of-stake chain, producing
-`Invalid system call address` errors every block. Shanghai still gives you `PUSH0`, which
-Solidity ≥0.8.20 emits by default. In `foundry.toml`:
+**1. Cancun works, but ONLY because the beacon-roots contract is pre-deployed.**
+Giggora runs Cancun. On a non-PoS chain that normally fails: Cancun system-calls the EIP-4788
+beacon-roots contract every block, and if that address is empty Besu logs
+`Invalid system call address` forever. The genesis therefore pre-deploys the contract at
+`0x000F3df6D732807Ef1319fB7B8bB8522d0Beac02`, which is the documented fix for private networks.
+`gen-config.mjs` refuses to build a Cancun genesis without it.
+
+Cancun is not a luxury here — **OpenZeppelin 5.6 emits `mcopy`, a Cancun opcode**, so a
+Shanghai-only chain cannot compile current OpenZeppelin at all. Contracts must match the chain:
 
 ```toml
-evm_version = "shanghai"
+evm_version = "cancun"
 ```
 
 **2. `fixedBaseFee: true` is mandatory, and it is subtle.**
@@ -189,6 +198,32 @@ key count) instead of trusting the exit code — and still fails hard on any *ot
 **8. Clique is dead — do not follow older tutorials.**
 Clique PoA has been deprecated in go-ethereum since v1.14 and was removed outright in Besu
 26.4.0. `puppeth` no longer exists. Any guide using either is EOL. Giggora uses QBFT.
+
+---
+
+## Contracts
+
+Sample ERC-20 / ERC-721 / ERC-1155 contracts live in [`contracts/`](contracts/), built with
+Foundry (run via Docker — no local install needed) and OpenZeppelin 5.6.1.
+
+```bash
+bash scripts/setup-contracts.sh      # OpenZeppelin + forge-std (pinned)
+bash scripts/forge.sh test           # 28 unit tests
+node scripts/deploy-contracts.mjs    # deploy to devnet + verify on-chain logs
+```
+
+| Contract | Standard | Symbol | Notes |
+|---|---|---|---|
+| `GigToken` | ERC-20 | GTT | Burnable, owner-mintable, 1,000,000 initial supply |
+| `GigNFT` | ERC-721 | GIGNFT | Enumerable + URI storage, so the explorer can list collections |
+| `GigMultiToken` | ERC-1155 | GIGMT | Supply-tracking, plus non-standard `name`/`symbol` for token detection |
+
+Deployed addresses are recorded in `deployments/<network>.json`.
+
+The deploy script does more than deploy: it reads the emitted logs back off the chain and asserts
+their exact shape — ERC-20 `Transfer` has 3 topics with the value in `data`, ERC-721 `Transfer`
+has 4 topics with empty `data`. That distinction is exactly what the Phase 4 indexer will use to
+tell the two standards apart.
 
 ---
 

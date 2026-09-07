@@ -1,7 +1,8 @@
 # Giggora — Architecture
 
-**Status:** Phase 1 signed off. **Phase 2 complete and verified** (7/7 acceptance checks).
-Phase 3 (contracts) not started.
+**Status:** Phase 1 signed off. **Phases 2 and 3 complete and verified.**
+Phase 2: 7/7 network acceptance checks. Phase 3: 28/28 contract unit tests, 12/12 on-chain checks.
+Phase 4 (Blockscout + indexer) not started.
 **Date:** 2026-09-07
 **Scope:** Implements Phase 1 of the project brief (`Build a Custom EVM Blockchain + Block Explorer.md`).
 
@@ -160,9 +161,10 @@ Initial parameters. All configurable, none hard-coded:
 | Block gas limit | 30,000,000 | Matches Ethereum mainnet; familiar to developers. |
 | `blockreward` | 0 at genesis | Pre-mine only initially; raise later via `transitions`. |
 | `miningbeneficiary` | unset | Defaults to block proposer. |
-| EIP-1559 base fee | enabled | Modern wallets and tooling assume it. |
-| Min gas price | low, non-zero | **Not zero** — a zero-gas chain is trivially spammable. |
-| Initial supply | TBD — see §12 | Genesis `alloc`. Requires a decision. |
+| EIP-1559 base fee | enabled, **fixed** | `fixedBaseFee: true`. Without it the base fee decays on empty blocks below `min-gas-price`, and wallets then underpay the floor — transactions are accepted and silently never mined. |
+| Hardfork | **Cancun** | Required in practice: OpenZeppelin 5.6 emits `mcopy`, a Cancun opcode, so a Shanghai chain cannot compile current OpenZeppelin. Works on non-PoS QBFT only because the EIP-4788 beacon-roots contract is pre-deployed in genesis at `0x000F3df6D732807Ef1319fB7B8bB8522d0Beac02`. |
+| Min gas price | 1 gwei | **Not zero** — a zero-gas chain is trivially spammable. Must equal `baseFeePerGas` when `fixedBaseFee` is on; the generator enforces this. |
+| Initial supply | 1,000,000,000 GIG | Genesis `alloc`. Decided — see §13. Generator verifies allocations sum exactly. |
 
 ---
 
@@ -330,7 +332,7 @@ Each phase has a binary acceptance test. Nothing is marked PASS without a passin
 |---|---|---|
 | **1** | This document | Signed off. |
 | **2** | Chain running | **COMPLETE 2026-09-07.** 4 validators produce blocks; killing 1 does **not** halt the chain; `eth_chainId` returns 4043; GIG transfers change balances; ~2s blocks under load. All 7 checks in `scripts/verify-network.mjs` pass. |
-| **3** | Contracts | ERC-20/721/1155 deploy via Foundry; transfers emit correct logs; auto-deployed on devnet boot. |
+| **3** | Contracts | **COMPLETE 2026-09-07.** ERC-20/721/1155 deploy via Foundry (28 unit tests pass); deployed to devnet with on-chain log shapes verified; `scripts/deploy-contracts.mjs` reproduces it on demand. |
 | **4** | Blockscout + indexer | Blockscout shows real blocks. Custom indexer matches Blockscout across 1000 consecutive blocks. `kill -9` mid-index → clean resume, zero duplicates, zero gaps. |
 | **5** | Explorer API | All §23 endpoints, paginated and validated; contract tests pass. |
 | **6** | Explorer UI | All §14 routes; search resolves address/tx/block/token; live updates; responsive to 375px. |

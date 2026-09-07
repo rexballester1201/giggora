@@ -1,0 +1,23 @@
+{
+  "network": "devnet",
+  "chainId": 4043,
+  "deployedAt": "2026-09-07T03:55:02.749Z",
+  "deployer": "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
+  "contracts": {
+    "GigToken": {
+      "address": "0x5fbdb2315678afecb367f032d93f642f64180aa3",
+      "standard": "ERC-20",
+      "symbol": "GTT"
+    },
+    "GigNFT": {
+      "address": "0xe7f1725e7734ce288f8367e1bb143e90bb3f0512",
+      "standard": "ERC-721",
+      "symbol": "GIGNFT"
+    },
+    "GigMultiToken": {
+      "address": "0x9fe46736679d2d9a65f0992f2272de9f3c7fa6e0",
+      "standard": "ERC-1155",
+      "symbol": "GIGMT"
+    }
+  }
+}
