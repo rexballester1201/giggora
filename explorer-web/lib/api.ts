@@ -11,8 +11,33 @@
  * avoid, and it would be a shame to introduce it in the last mile.
  */
 
+/**
+ * Where to reach the explorer API.
+ *
+ * The server and the browser need DIFFERENT addresses, and conflating them is
+ * the bug this shape exists to prevent.
+ *
+ *   server  runs inside the web container. It must use a private address
+ *           (http://giggora-api:4100) - "localhost" there is the web container
+ *           itself, where nothing is listening.
+ *   browser runs on the user's machine and can only use a PUBLIC address, so
+ *           that value has to be inlined at build time via NEXT_PUBLIC_*.
+ *
+ * NEXT_PUBLIC_API_BASE is inlined into BOTH bundles, so a single
+ *   NEXT_PUBLIC_API_BASE ?? API_BASE
+ * silently made the server use the browser's address and never read API_BASE
+ * at all: on the devnet it fetched localhost:4100 from inside the container and
+ * rendered "Could not reach the explorer API" while the API was perfectly
+ * healthy. In deploy/ it was subtler - the server would have gone out through
+ * Caddy and back in, rate-limiting itself through its own public endpoint.
+ *
+ * On a developer machine neither variable is set and both sides fall back to
+ * localhost, which is correct there.
+ */
 export const API_BASE =
-  process.env.NEXT_PUBLIC_API_BASE ?? process.env.API_BASE ?? "http://localhost:4100";
+  typeof window === "undefined"
+    ? process.env.API_BASE ?? process.env.NEXT_PUBLIC_API_BASE ?? "http://localhost:4100"
+    : process.env.NEXT_PUBLIC_API_BASE ?? "http://localhost:4100";
 
 export interface Page<T> {
   items: T[];
@@ -116,6 +141,16 @@ export interface Stats {
   averageBlockTimeSeconds: number | null;
   gasLimit: string | null;
   baseFeePerGas: string | null;
+
+  // Staleness. Every other field here comes from the indexer database, so they
+  // agree with each other even when the indexer has been dead for hours. These
+  // three are the only way to know whether any of it is current.
+  //
+  // null means "unknown", NOT "fine": chainHeadBlock is null until the indexer
+  // has run once since migration 004.
+  chainHeadBlock: number | null;
+  indexerLagBlocks: number | null;
+  indexerStaleSeconds: number | null;
 }
 
 export interface AddressInfo {

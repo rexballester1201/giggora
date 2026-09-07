@@ -9,6 +9,7 @@ import Link from "next/link";
 import { api, formatCount, formatUnits, toGwei } from "@/lib/api";
 import { Card, Stat, Empty } from "@/components/ui";
 import { LiveBlocks, LiveTransactions } from "@/components/Live";
+import { StalenessBanner } from "@/components/Staleness";
 
 export const dynamic = "force-dynamic";
 
@@ -35,6 +36,13 @@ export default async function Home() {
 
   return (
     <div className="space-y-6">
+      <StalenessBanner
+        staleSeconds={stats.indexerStaleSeconds}
+        lagBlocks={stats.indexerLagBlocks}
+        lastIndexedBlock={stats.lastIndexedBlock}
+        chainHeadBlock={stats.chainHeadBlock}
+      />
+
       <section>
         <h1 className="mb-1 text-lg font-semibold">
           {stats.chainName} <span style={{ color: "var(--text-dim)" }}>Explorer</span>

@@ -25,7 +25,7 @@
  *   node indexer/src/index.ts --status
  */
 
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import pg from "pg";
@@ -37,15 +37,37 @@ import { resolvePendingTokenMetadata, refreshTokenSupplies } from "./tokens.ts";
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..", "..");
 
 // --- config ------------------------------------------------------------------
-const env = Object.fromEntries(
-  readFileSync(join(ROOT, ".env"), "utf8")
-    .split("\n")
-    .filter((l) => l.trim() && !l.startsWith("#") && l.includes("="))
-    .map((l) => {
-      const i = l.indexOf("=");
-      return [l.slice(0, i).trim(), l.slice(i + 1).trim()];
-    })
-) as Record<string, string>;
+/**
+ * Configuration, from a .env FILE if there is one and from the real
+ * environment always.
+ *
+ * The file is a developer-machine convenience. In a container there is no
+ * .env - configuration arrives as actual environment variables - and
+ * requiring the file made this process crash on startup with
+ *   ENOENT: no such file or directory, open '/app/.env'
+ * the moment .dockerignore (correctly) stopped shipping secrets into images.
+ *
+ * process.env wins over the file: the ordinary 12-factor precedence, where an
+ * explicitly exported variable is a deliberate act and a checked-in default
+ * is not.
+ */
+function loadEnv(): Record<string, string> {
+  let fromFile: Record<string, string> = {};
+  const envPath = join(ROOT, ".env");
+  if (existsSync(envPath)) {
+    fromFile = Object.fromEntries(
+      readFileSync(envPath, "utf8")
+        .split("\n")
+        .filter((l) => l.trim() && !l.startsWith("#") && l.includes("="))
+        .map((l) => {
+          const i = l.indexOf("=");
+          return [l.slice(0, i).trim(), l.slice(i + 1).trim()];
+        })
+    ) as Record<string, string>;
+  }
+  return { ...fromFile, ...(process.env as Record<string, string>) };
+}
+const env = loadEnv();
 
 function flag(name: string): boolean {
   return process.argv.includes(`--${name}`);
@@ -371,6 +393,24 @@ async function showStatus() {
 `);
 }
 
+/**
+ * Record the chain head the indexer just observed, plus updated_at.
+ *
+ * Deliberately its own statement rather than folded into the per-block
+ * checkpoint: the checkpoint only runs when there IS a block to index, and the
+ * whole point of this row is to prove the indexer is alive when there is not.
+ */
+async function recordHeartbeat(head: number): Promise<void> {
+  await pool.query(
+    `INSERT INTO indexer_state (id, last_processed_block, chain_id, chain_head_block)
+     VALUES (1, 0, $2, $1)
+     ON CONFLICT (id) DO UPDATE
+       SET chain_head_block = EXCLUDED.chain_head_block,
+           updated_at = now()`,
+    [head, CHAIN_ID]
+  );
+}
+
 async function run() {
   if (flag("status")) {
     await showStatus();
@@ -401,6 +441,20 @@ async function run() {
 
   while (!shuttingDown) {
     const head = to !== null ? to : Number(await rpc.getBlockNumber());
+
+    // Heartbeat BEFORE the caught-up check, deliberately. The loop below skips
+    // the database entirely when there is nothing to index, so without this a
+    // healthy idle indexer and a dead one look identical to /api/stats — both
+    // simply stop updating indexer_state. Writing every poll makes the three
+    // states distinguishable (migration 004).
+    //
+    // Non-fatal: a heartbeat failure must never stop ingestion. Reporting
+    // staleness is less important than not being stale.
+    try {
+      await recordHeartbeat(head);
+    } catch (err) {
+      console.error(`  heartbeat failed (non-fatal): ${(err as Error).message}`);
+    }
 
     if (next > head) {
       if (once || to !== null) break;

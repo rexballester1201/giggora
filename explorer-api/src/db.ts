@@ -21,7 +21,7 @@
  *      exceeds Number.MAX_SAFE_INTEGER and the corruption would be silent.
  */
 
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import pg from "pg";
@@ -39,15 +39,37 @@ pg.types.setTypeParser(1700, (v: string) => v);
 // strings and converting deliberately is safer than assuming they always will.
 pg.types.setTypeParser(20, (v: string) => v);
 
-export const env = Object.fromEntries(
-  readFileSync(join(ROOT, ".env"), "utf8")
-    .split("\n")
-    .filter((l) => l.trim() && !l.startsWith("#") && l.includes("="))
-    .map((l) => {
-      const i = l.indexOf("=");
-      return [l.slice(0, i).trim(), l.slice(i + 1).trim()];
-    })
-) as Record<string, string>;
+/**
+ * Configuration, from a .env FILE if there is one and from the real
+ * environment always.
+ *
+ * The file is a developer-machine convenience. In a container there is no
+ * .env - configuration arrives as actual environment variables - and
+ * requiring the file made this process crash on startup with
+ *   ENOENT: no such file or directory, open '/app/.env'
+ * the moment .dockerignore (correctly) stopped shipping secrets into images.
+ *
+ * process.env wins over the file: the ordinary 12-factor precedence, where an
+ * explicitly exported variable is a deliberate act and a checked-in default
+ * is not.
+ */
+function loadEnv(): Record<string, string> {
+  let fromFile: Record<string, string> = {};
+  const envPath = join(ROOT, ".env");
+  if (existsSync(envPath)) {
+    fromFile = Object.fromEntries(
+      readFileSync(envPath, "utf8")
+        .split("\n")
+        .filter((l) => l.trim() && !l.startsWith("#") && l.includes("="))
+        .map((l) => {
+          const i = l.indexOf("=");
+          return [l.slice(0, i).trim(), l.slice(i + 1).trim()];
+        })
+    ) as Record<string, string>;
+  }
+  return { ...fromFile, ...(process.env as Record<string, string>) };
+}
+export const env = loadEnv();
 
 export const pool = new pg.Pool({
   connectionString: process.env.DATABASE_URL ?? env.DATABASE_URL,

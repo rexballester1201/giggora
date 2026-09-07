@@ -258,6 +258,113 @@ services:
       retries: 20
       start_period: 10s
 
+  # ===========================================================================
+  # EXPLORER STACK — opt-in, behind the "explorer" profile.
+  #
+  #   docker compose up -d                        chain only (default, fast)
+  #   docker compose --profile explorer up -d     chain + indexer + API + UI
+  #
+  # Profiled rather than default on purpose. These two images cost ~800 MB to
+  # build, and on Docker Desktop that lands in docker_data.vhdx, which never
+  # shrinks. Someone who only wants a chain to point MetaMask at should not pay
+  # for an explorer they did not ask for.
+  #
+  # The images come from deploy/explorer/, so the devnet and a real deployment
+  # build the SAME artifacts — a devnet that passes with a different image than
+  # production ships is not evidence of much.
+  #
+  # These publish the same host ports the manual "node indexer/src/index.ts"
+  # workflow uses, so run one or the other, never both.
+  # ===========================================================================
+
+  indexer:
+    profiles: ["explorer"]
+    build:
+      context: .
+      dockerfile: deploy/explorer/Dockerfile.node
+    image: giggora/explorer-node:latest
+    container_name: giggora-indexer
+    restart: unless-stopped
+    depends_on:
+      postgres: { condition: service_healthy }
+      rpc:      { condition: service_healthy }
+    environment:
+      # Container-internal addresses. The host .env points at localhost, which
+      # is this container, not the database.
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@giggora-postgres:5432/${POSTGRES_DB}
+      RPC_URL: http://giggora-rpc:8545
+      CHAIN_ID: ${CHAIN_ID}
+      CHAIN_NAME: ${CHAIN_NAME}
+      CURRENCY_NAME: ${CURRENCY_NAME}
+      CURRENCY_SYMBOL: ${CURRENCY_SYMBOL}
+      CURRENCY_DECIMALS: ${CURRENCY_DECIMALS}
+    command: ["node", "indexer/src/index.ts"]
+    networks: [giggora]
+    logging: &explorer-logging
+      driver: json-file
+      options:
+        max-size: "20m"
+        max-file: "3"
+
+  api:
+    profiles: ["explorer"]
+    image: giggora/explorer-node:latest
+    container_name: giggora-api
+    restart: unless-stopped
+    depends_on:
+      postgres: { condition: service_healthy }
+      indexer:  { condition: service_started }
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@giggora-postgres:5432/${POSTGRES_DB}
+      # The API talks to the chain too, not only the database: live balances and
+      # code are read straight from the node, because a cached balance is a
+      # wrong balance. Omit this and it dies at import time with
+      #   No URL was provided to the Transport.
+      RPC_URL: http://giggora-rpc:8545
+      API_HOST: 0.0.0.0
+      API_PORT: "4100"
+      CHAIN_ID: ${CHAIN_ID}
+      CHAIN_NAME: ${CHAIN_NAME}
+      CURRENCY_NAME: ${CURRENCY_NAME}
+      CURRENCY_SYMBOL: ${CURRENCY_SYMBOL}
+      CURRENCY_DECIMALS: ${CURRENCY_DECIMALS}
+    command: ["node", "explorer-api/src/server.ts"]
+    # Published because the BROWSER calls this directly, not only the web
+    # container — NEXT_PUBLIC_API_BASE has to be an address the browser resolves.
+    ports:
+      - "127.0.0.1:4100:4100"
+    networks: [giggora]
+    logging: *explorer-logging
+
+  web:
+    profiles: ["explorer"]
+    build:
+      context: .
+      dockerfile: deploy/explorer/Dockerfile.web
+      args:
+        # BUILD-TIME. Next inlines NEXT_PUBLIC_* into the client bundle, so
+        # these must be what the BROWSER can reach, and changing one needs a
+        # rebuild, not a restart.
+        NEXT_PUBLIC_API_BASE: http://localhost:4100
+        NEXT_PUBLIC_RPC_URL: ${RPC_URL}
+        NEXT_PUBLIC_EXPLORER_URL: http://localhost:3000
+        NEXT_PUBLIC_NETWORK_LABEL: ${CHAIN_NAME} ${CHAIN_NETWORK}
+    image: giggora/explorer-web:latest
+    container_name: giggora-web
+    restart: unless-stopped
+    depends_on:
+      api: { condition: service_started }
+    environment:
+      # Server components stay on the docker network; only the browser goes via
+      # localhost.
+      API_BASE: http://giggora-api:4100
+      NODE_ENV: production
+    ports:
+      - "127.0.0.1:3000:3000"
+    networks: [giggora]
+    logging: *explorer-logging
+
+
 volumes:
   giggora-pgdata:
     name: giggora-pgdata

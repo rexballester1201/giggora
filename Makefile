@@ -135,3 +135,16 @@ monitor:
 
 backup:
 	bash scripts/backup.sh
+
+# Whole stack: chain + indexer + API + explorer UI, in containers.
+# Behind the "explorer" profile so `docker compose up -d` stays chain-only —
+# the two explorer images cost ~800 MB and land in a virtual disk that never
+# shrinks, so they are opt-in.
+stack:
+	docker compose --profile explorer up -d --build
+
+stack-down:
+	docker compose --profile explorer down
+
+stack-logs:
+	docker compose --profile explorer logs -f indexer api web

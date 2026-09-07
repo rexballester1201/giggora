@@ -246,7 +246,9 @@ export async function registerRoutes(app: FastifyInstance) {
     // Totals come from indexer-maintained counters, never count(*).
     const state = await queryOne(
       `SELECT last_processed_block, chain_id, total_transactions, total_logs,
-              total_token_transfers, total_contracts, total_tokens, updated_at
+              total_token_transfers, total_contracts, total_tokens, updated_at,
+              chain_head_block,
+              EXTRACT(EPOCH FROM (now() - updated_at)) AS staleness_seconds
          FROM indexer_state WHERE id = 1`
     );
     const head = await queryOne(
@@ -275,8 +277,28 @@ export async function registerRoutes(app: FastifyInstance) {
       chainId: Number(env.CHAIN_ID),
       chainName: env.CHAIN_NAME,
       currency: { name: env.CURRENCY_NAME, symbol: env.CURRENCY_SYMBOL, decimals: Number(env.CURRENCY_DECIMALS) },
+      // latestBlock keeps its meaning: the newest block the EXPLORER holds.
+      // Renaming it would break every consumer, and it is the honest answer to
+      // "what can this explorer show you".
       latestBlock: head ? Number(head.number) : null,
       lastIndexedBlock: state ? Number(state.last_processed_block) : null,
+
+      // Staleness (migration 004). Everything above comes from the database, so
+      // it agrees with itself even when the indexer died hours ago. These three
+      // are the only fields that can contradict it, and a client that wants to
+      // avoid presenting old data as current has to look at them.
+      //
+      // chainHeadBlock is NULL until the indexer has run once since migration
+      // 004 — treat NULL as "unknown", never as "zero blocks behind".
+      chainHeadBlock: state && state.chain_head_block !== null ? Number(state.chain_head_block) : null,
+      indexerLagBlocks:
+        state && state.chain_head_block !== null
+          ? Math.max(0, Number(state.chain_head_block) - Number(state.last_processed_block))
+          : null,
+      // Seconds since the indexer last proved it was alive. It heartbeats every
+      // poll even when caught up, so this growing past a few poll intervals
+      // means the process is gone, not that the chain is quiet.
+      indexerStaleSeconds: state ? Math.round(Number(state.staleness_seconds)) : null,
       // Strings: these are counters that will exceed 2^53 on a busy chain.
       totalTransactions: state ? String(state.total_transactions) : "0",
       totalLogs: state ? String(state.total_logs) : "0",

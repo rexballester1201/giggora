@@ -1,0 +1,52 @@
+# Giggora — build context exclusions.
+#
+# TWO REASONS THIS FILE EXISTS, and the second one matters more.
+#
+# 1. CORRECTNESS. Without it, `COPY explorer-web ./` copies the WINDOWS-built
+#    node_modules over the Linux `npm ci` output inside the image. The build
+#    then dies with
+#      /app/node_modules/.bin/next: exec: line 33: node.exe: not found
+#    because the .bin shims are Windows shims. Native modules are per-platform;
+#    a host node_modules must never enter a Linux image.
+#
+# 2. SECRETS (brief §30). The build context is the repository ROOT, so without
+#    these rules `blockchain/nodes/` — which holds the VALIDATOR PRIVATE KEYS —
+#    and `.env` would be shipped into the build context and could land in an
+#    image layer. Layers persist even if a later step deletes the file, and an
+#    image gets pushed to registries. Do not remove these lines.
+
+# ---- secrets: never in a build context ----
+.env
+.env.*
+!.env.example
+blockchain/nodes/
+blockchain/keys/
+blockchain/genesis/networkFiles/
+**/key
+**/key.pub
+*.pem
+secrets/
+backups/
+
+# ---- host-built dependencies: wrong platform ----
+**/node_modules
+**/.next
+**/out
+**/dist
+
+# ---- chain data: large, regenerated, not needed to build ----
+blockchain/data/
+**/besu-data/
+
+# ---- build/test artifacts ----
+contracts/lib/
+contracts/out/
+contracts/cache/
+contracts/broadcast/
+coverage/
+*.log
+
+# ---- vcs and tooling ----
+.git/
+.github/
+.gitignore

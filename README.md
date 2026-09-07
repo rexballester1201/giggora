@@ -66,7 +66,7 @@ docker compose down -v && rm -rf blockchain/nodes blockchain/genesis/networkFile
 | RPC URL | `http://localhost:8545` |
 | Chain ID | `4043` |
 | Currency symbol | `GIG` |
-| Block explorer | *(not yet — Phase 4)* |
+| Block explorer | `http://localhost:3000` (see below) |
 
 **Devnet test accounts.** These private keys are published by Foundry/Anvil and Besu. They are
 public knowledge and hold no real value. **Never use them on testnet or mainnet.**
@@ -79,6 +79,51 @@ public knowledge and hold no real value. **Never use them on testnet or mainnet.
 
 Treasury, ecosystem, and team allocations use the standard Besu dev accounts — see
 [`blockchain/config/chain.config.json`](blockchain/config/chain.config.json).
+
+---
+
+## Running the explorer
+
+The chain alone needs nothing else. The explorer is three more processes —
+indexer, API, UI — and there are two ways to run them.
+
+**Containers (one command):**
+
+```bash
+npm run stack
+```
+
+That is `docker compose --profile explorer up -d --build`: chain, indexer, API
+and UI together, on http://localhost:3000 with the API on 4100. It builds the
+same images `deploy/explorer/` uses, so the devnet exercises what a real
+deployment would ship.
+
+They sit behind a compose **profile** rather than running by default: the two
+images cost ~800 MB, and on Docker Desktop that lands in a virtual disk that
+never shrinks. Someone who only wants a chain to point MetaMask at should not
+pay for an explorer they did not ask for. Plain `docker compose up -d` stays
+chain-only.
+
+**On the host (for editing the code):**
+
+```bash
+node indexer/src/index.ts
+```
+
+```bash
+node explorer-api/src/server.ts
+```
+
+```bash
+npm run web:dev
+```
+
+Run one way or the other, never both — they bind the same ports.
+
+**If the explorer shows old numbers**, the indexer is not running. The page says
+so itself: it carries a banner reading "This page may be out of date" whenever
+the indexer has not checked in for 30 seconds. It is reading a database, not the
+chain, and it will not pretend otherwise.
 
 ---
 
@@ -124,6 +169,9 @@ genesis if they do not.
 | `bash scripts/forge.sh build` | `npm run contracts:build` | `make contracts` | Compile contracts |
 | `bash scripts/forge.sh test` | `npm run contracts:test` | `make contracts-test` | Foundry test suite |
 | `node scripts/deploy-contracts.mjs` | `npm run contracts:deploy` | `make deploy-contract` | Deploy + verify on chain |
+| — | `npm run stack` | `make stack` | **Everything**: chain + indexer + API + explorer UI |
+| — | `npm run stack:down` | `make stack-down` | Stop the whole stack |
+| — | `npm run stack:logs` | `make stack-logs` | Follow explorer logs |
 
 ---
 

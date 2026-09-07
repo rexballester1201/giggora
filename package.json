@@ -47,7 +47,10 @@
     "monitor:watch": "node scripts/monitor-chain.mjs --watch 30",
     "backup": "bash scripts/backup.sh",
     "transition": "node scripts/schedule-transition.mjs",
-    "transition:test": "node scripts/test-qbft-transition.mjs"
+    "transition:test": "node scripts/test-qbft-transition.mjs",
+    "stack": "docker compose --profile explorer up -d --build",
+    "stack:down": "docker compose --profile explorer down",
+    "stack:logs": "docker compose --profile explorer logs -f indexer api web"
   },
   "dependencies": {
     "@fastify/cors": "^11.3.0",
