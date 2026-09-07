@@ -16,10 +16,11 @@ depending on Ethereum, BSC, or Polygon.
 | Total supply | 1,000,000,000 GIG |
 | Devnet chain ID | 4043 |
 
-> **Status: Phases 1-4 of 8 COMPLETE.** Chain running and verified (7/7 network checks),
-> ERC-20/721/1155 contracts deployed (28/28 unit tests, 12/12 on-chain checks), and the
-> indexer is running, crash-tested under SIGKILL, and cross-checked against Blockscout.
-> The explorer API and explorer UI are not yet built.
+> **Status: Phases 1-5 of 8 COMPLETE.** Chain running and verified (7/7 network checks),
+> ERC-20/721/1155 contracts deployed (28/28 unit tests, 12/12 on-chain checks), indexer
+> crash-tested under SIGKILL and cross-checked against Blockscout across 833 blocks, and
+> the explorer API serving every §23/§24 endpoint (51/51 contract tests).
+> The explorer UI is not yet built.
 > See [docs/architecture.md](docs/architecture.md) for the full plan.
 
 ---
@@ -298,6 +299,54 @@ Ours is normalised so "every transfer of token id X" is an indexed lookup instea
 array scan. Neither is wrong, so `crosscheck-blockscout.ts` compares at log granularity.
 This surfaced as a real off-by-one before it was understood — the cross-check earning its
 keep on its first run.
+
+---
+
+## Explorer API
+
+Read-only HTTP API over the indexed data. Fastify, run directly by Node 24 — no build step.
+
+```bash
+node explorer-api/src/server.ts      # http://localhost:4100
+node scripts/test-api.ts             # 51 contract tests against the running API
+```
+
+All §23 routes (`/api/stats`, `/api/blocks`, `/api/transactions`, `/api/address/...`,
+`/api/tokens`, `/api/contracts`, `/api/search`) plus the §24 Etherscan-shaped public
+surface under `/api/v1/`.
+
+### Four decisions that carry the design
+
+**Keyset pagination, never OFFSET, and no total counts.** OFFSET makes Postgres
+materialise and discard every skipped row, so cost grows linearly with page depth and one
+crawler can saturate the pool; it is also unstable, because a new block shifts every row
+and consecutive pages then duplicate or skip entries. `count(*)` over transactions is an
+unbounded sequential scan, so exact totals come from counters the indexer maintains inside
+its own per-block transaction.
+
+**Sentinel defaults instead of `IS NULL` cursors.** The obvious
+`($1::bigint IS NULL OR number <= $1)` cannot be extracted as an index start condition, so
+the *uncursored first page* — the most requested page of all — silently degrades to a full
+index scan while cursored pages look fine. Substituting the maximum of the key domain keeps
+the predicate `number <= $1`, with an identical plan on page 1 and page 100,000.
+
+**Address feeds are `UNION ALL`, never `from = $1 OR to = $1`.** The OR makes Postgres
+BitmapOr both indexes and then sort *every* transaction touching the address to return 25
+rows — a disk-spilling sort reachable from a 42-character URL. Two independently bounded
+index scans are unioned instead, and self-transfers are de-duplicated in JS over the tiny
+result.
+
+**No response schemas.** Fastify serialises with `fast-json-stringify`, which *coerces* to
+the declared type. A wei field declared `number` would be silently rounded through a double,
+downstream of pg returning it correctly and of every other safeguard. Omitting the schema
+means plain `JSON.stringify` and no coercion — every uint256 leaves as a string, and a test
+asserts it.
+
+### What the API will not pretend to know
+
+The schema holds no balance state, so token holdings and holder counts are not derivable.
+Those fields return `null` with an explicit reason rather than a slow, wrong number
+aggregated from transfer history. Native balance is read from the node.
 
 ---
 

@@ -30,12 +30,16 @@
     "blockscout:up": "docker compose -f docker-compose.yml -f docker-compose.blockscout.yml up -d blockscout",
     "blockscout:down": "docker compose -f docker-compose.yml -f docker-compose.blockscout.yml stop blockscout",
     "crosscheck": "node scripts/crosscheck-blockscout.ts",
-    "load": "node scripts/load-generator.mjs"
-  },
-  "devDependencies": {
-    "viem": "2.56.3"
+    "load": "node scripts/load-generator.mjs",
+    "api": "node explorer-api/src/server.ts",
+    "api:test": "node scripts/test-api.ts",
+    "indexer:tokens": "node indexer/src/index.ts --tokens"
   },
   "dependencies": {
-    "pg": "^8.23.0"
+    "@fastify/cors": "^11.3.0",
+    "@fastify/rate-limit": "^11.2.0",
+    "fastify": "^5.12.3",
+    "pg": "^8.23.0",
+    "viem": "2.56.3"
   }
 }

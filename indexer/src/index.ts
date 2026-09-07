@@ -32,6 +32,7 @@ import pg from "pg";
 import { createPublicClient, defineChain, http } from "viem";
 import { toBytes, toNumeric, toTimestamp } from "./hex.ts";
 import { decodeTransfers } from "./decode.ts";
+import { resolvePendingTokenMetadata, refreshTokenSupplies } from "./tokens.ts";
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..", "..");
 
@@ -106,6 +107,12 @@ async function indexBlock(blockNumber: number): Promise<{ txs: number; logs: num
   let txCount = 0;
   let logCount = 0;
   let transferCount = 0;
+  // Rows ACTUALLY inserted (rowCount 0 when ON CONFLICT skipped) — used to keep
+  // the running totals in indexer_state correct across re-indexing.
+  let insertedTxs = 0;
+  let insertedLogs = 0;
+  let insertedTransfers = 0;
+  const newTokens = [];
 
   try {
     await client.query("BEGIN");
@@ -145,7 +152,7 @@ async function indexBlock(blockNumber: number): Promise<{ txs: number; logs: num
       const effectiveGasPrice = receipt.effectiveGasPrice;
       const fee = gasUsed * effectiveGasPrice;
 
-      await client.query(
+      const txRes = await client.query(
         `INSERT INTO transactions (
            hash, block_number, transaction_index, from_address, to_address, value,
            nonce, gas, gas_price, max_fee_per_gas, max_priority_fee_per_gas, input,
@@ -177,6 +184,7 @@ async function indexBlock(blockNumber: number): Promise<{ txs: number; logs: num
         ]
       );
       txCount++;
+      insertedTxs += txRes.rowCount ?? 0;
 
       // Track addresses seen. A contract creation marks the new address.
       await touchAddress(client, tx.from, blockNumber, false);
@@ -186,7 +194,7 @@ async function indexBlock(blockNumber: number): Promise<{ txs: number; logs: num
       }
 
       for (const log of receipt.logs) {
-        await client.query(
+        const logRes = await client.query(
           `INSERT INTO logs (
              transaction_hash, log_index, block_number, address,
              topic0, topic1, topic2, topic3, data
@@ -205,6 +213,7 @@ async function indexBlock(blockNumber: number): Promise<{ txs: number; logs: num
           ]
         );
         logCount++;
+        insertedLogs += logRes.rowCount ?? 0;
 
         const transfers = decodeTransfers({
           address: log.address,
@@ -214,7 +223,7 @@ async function indexBlock(blockNumber: number): Promise<{ txs: number; logs: num
         });
 
         for (const t of transfers) {
-          await client.query(
+          const ttRes = await client.query(
             `INSERT INTO token_transfers (
                transaction_hash, log_index, batch_index, block_number, token_address,
                standard, from_address, to_address, value, token_id, timestamp
@@ -235,25 +244,40 @@ async function indexBlock(blockNumber: number): Promise<{ txs: number; logs: num
             ]
           );
           transferCount++;
+          insertedTransfers += ttRes.rowCount ?? 0;
 
           // Record the token contract the first time we see it move anything.
-          await client.query(
+          const tokRes = await client.query(
             `INSERT INTO tokens (address, standard, first_seen_block)
              VALUES ($1,$2,$3) ON CONFLICT (address) DO NOTHING`,
             [t.tokenAddress, t.standard, blockNumber]
           );
+          if ((tokRes.rowCount ?? 0) > 0) {
+            newTokens.push({ address: t.tokenAddress, standard: t.standard });
+          }
         }
       }
     }
 
     // Checkpoint advances in the SAME transaction as the data above.
+    //
+    // Counters are incremented by rows ACTUALLY inserted, not by rows seen.
+    // Every insert above is ON CONFLICT DO NOTHING, so rowCount is 0 when a row
+    // already existed — which keeps the counters correct when a range is
+    // re-indexed, instead of double counting.
     await client.query(
-      `INSERT INTO indexer_state (id, last_processed_block, chain_id)
-       VALUES (1, $1, $2)
+      `INSERT INTO indexer_state (
+         id, last_processed_block, chain_id,
+         total_transactions, total_logs, total_token_transfers
+       )
+       VALUES (1, $1, $2, $3, $4, $5)
        ON CONFLICT (id) DO UPDATE
-         SET last_processed_block = EXCLUDED.last_processed_block,
+         SET last_processed_block   = EXCLUDED.last_processed_block,
+             total_transactions     = indexer_state.total_transactions + EXCLUDED.total_transactions,
+             total_logs             = indexer_state.total_logs + EXCLUDED.total_logs,
+             total_token_transfers  = indexer_state.total_token_transfers + EXCLUDED.total_token_transfers,
              updated_at = now()`,
-      [blockNumber, CHAIN_ID]
+      [blockNumber, CHAIN_ID, insertedTxs, insertedLogs, insertedTransfers]
     );
 
     await client.query("COMMIT");
@@ -335,6 +359,13 @@ async function run() {
     return;
   }
 
+  if (flag("tokens")) {
+    const n = await resolvePendingTokenMetadata(pool, rpc, 500);
+    const r = await refreshTokenSupplies(pool, rpc, 500);
+    console.log(`token metadata: ${n} resolved, ${r} supplies refreshed`);
+    return;
+  }
+
   const from = opt("from");
   const to = opt("to");
   const once = flag("once");
@@ -357,6 +388,14 @@ async function run() {
       if (once || to !== null) break;
       await sleep(POLL_MS);
       continue;
+    }
+
+    // Resolve any newly-seen token contracts. Deliberately outside the block
+    // transaction: a slow or reverting eth_call must not stall ingestion.
+    try {
+      await resolvePendingTokenMetadata(pool, rpc, 25);
+    } catch (err) {
+      console.error(`  token metadata resolution failed (non-fatal): ${(err as Error).message}`);
     }
 
     const target = Math.min(head, next + MAX_BATCH - 1);

@@ -1,9 +1,10 @@
 # Giggora — Architecture
 
-**Status:** Phase 1 signed off. **Phases 2, 3 and 4 complete and verified.**
+**Status:** Phase 1 signed off. **Phases 2-5 complete and verified.**
 Phase 2: 7/7 network checks. Phase 3: 28/28 contract unit tests, 12/12 on-chain checks.
-Phase 4: 8/8 indexer checks, crash recovery under SIGKILL, cross-checked against Blockscout.
-Phase 5 (explorer API) not started.
+Phase 4: 8/8 indexer checks over 1000 blocks, crash recovery under SIGKILL, Blockscout cross-check.
+Phase 5: 51/51 API contract tests.
+Phase 6 (explorer UI) not started.
 **Date:** 2026-09-07
 **Scope:** Implements Phase 1 of the project brief (`Build a Custom EVM Blockchain + Block Explorer.md`).
 
@@ -335,7 +336,7 @@ Each phase has a binary acceptance test. Nothing is marked PASS without a passin
 | **2** | Chain running | **COMPLETE 2026-09-07.** 4 validators produce blocks; killing 1 does **not** halt the chain; `eth_chainId` returns 4043; GIG transfers change balances; ~2s blocks under load. All 7 checks in `scripts/verify-network.mjs` pass. |
 | **3** | Contracts | **COMPLETE 2026-09-07.** ERC-20/721/1155 deploy via Foundry (28 unit tests pass); deployed to devnet with on-chain log shapes verified; `scripts/deploy-contracts.mjs` reproduces it on demand. |
 | **4** | Blockscout + indexer | **COMPLETE 2026-09-07.** Blockscout indexes the chain and serves its API. Custom indexer verified field-by-field against RPC, and agrees with Blockscout on blocks, hashes, validators, gas and every transaction hash. `kill -9` mid-index survives with zero gaps, zero duplicates, no lost progress; re-indexing is a no-op. |
-| **5** | Explorer API | All §23 endpoints, paginated and validated; contract tests pass. |
+| **5** | Explorer API | **COMPLETE 2026-09-07.** All §23 and §24 endpoints, keyset-paginated and validated. 51/51 contract tests: uint256 precision preserved end to end, NULL semantics preserved, no duplicate/skipped rows across pages, injection and malformed input rejected as 400, list query plans index-backed, rate limiting returns 429. |
 | **6** | Explorer UI | All §14 routes; search resolves address/tx/block/token; live updates; responsive to 375px. |
 | **7** | Wallet + DApp | MetaMask add-network works; native and ERC-20 transfers from MetaMask; sample DApp completes a send and confirmation. |
 | **8** | Deployment | Testnet (4042) live on a VPS with TLS, firewall, backups, monitoring. |

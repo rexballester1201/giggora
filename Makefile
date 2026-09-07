@@ -10,7 +10,7 @@
 #
 # ...or use the npm equivalents: npm run genesis / start / stop / verify / clean
 
-.PHONY: help config genesis start stop restart logs status test clean reset setup-contracts contracts contracts-test deploy-contract
+.PHONY: help config genesis start stop restart logs status test clean reset setup-contracts contracts contracts-test deploy-contract db-migrate indexer api api-test
 
 help:
 	@echo ""
@@ -32,6 +32,12 @@ help:
 	@echo "  make contracts        Compile contracts"
 	@echo "  make contracts-test   Run the Foundry test suite"
 	@echo "  make deploy-contract  Deploy samples to the devnet and verify logs"
+	@echo ""
+	@echo "  Indexer + API:"
+	@echo "  make db-migrate       Apply database migrations"
+	@echo "  make indexer          Run the indexer (follows the chain head)"
+	@echo "  make api              Run the explorer API"
+	@echo "  make api-test         Run the API contract tests"
 	@echo ""
 
 config:
@@ -79,3 +85,15 @@ contracts-test:
 
 deploy-contract:
 	node scripts/deploy-contracts.mjs
+
+db-migrate:
+	bash scripts/db-migrate.sh
+
+indexer:
+	node indexer/src/index.ts
+
+api:
+	node explorer-api/src/server.ts
+
+api-test:
+	node scripts/test-api.ts
