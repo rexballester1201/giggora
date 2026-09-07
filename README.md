@@ -28,6 +28,19 @@ depending on Ethereum, BSC, or Polygon.
 
 ---
 
+## 📕 Shelved 2026-09-07 — start here
+
+This project is complete and paused, not abandoned. Before touching anything:
+
+| Read | For |
+|---|---|
+| **[HANDOVER.md](HANDOVER.md)** | What state this is in, what is unfinished, the decisions still open |
+| **[DEPLOY.md](DEPLOY.md)** | Running it — local, measured hardware specs, production, incidents |
+| **[CLAUDE.md](CLAUDE.md)** | Architecture, conventions, and the 16 gotchas that will otherwise cost you a day |
+| **[giggora-dossier.html](giggora-dossier.html)** | All three in one offline, printable page (`npm run docs` rebuilds it) |
+
+---
+
 ## Prerequisites
 
 - **Docker Desktop**, running
