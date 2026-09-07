@@ -1,0 +1,121 @@
+@import "tailwindcss";
+
+/*
+ * Giggora explorer — visual identity (brief §35).
+ *
+ * Original palette, deliberately not BscScan's yellow or Etherscan's blue.
+ * Giggora uses a teal/slate scheme with a warm amber accent for the native coin.
+ *
+ * Colours are defined as CSS variables on :root and overridden under
+ * .dark, so both themes are complete and neither borrows from the other.
+ */
+
+@theme {
+  --font-mono: ui-monospace, "SF Mono", "Cascadia Mono", Menlo, Consolas, monospace;
+  --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+}
+
+:root {
+  --bg: #f7f9fa;
+  --surface: #ffffff;
+  --surface-2: #f1f5f6;
+  --border: #dde5e8;
+  --text: #0f2027;
+  --text-dim: #5b7079;
+  --brand: #0d7d78;
+  --brand-strong: #0a5f5b;
+  --accent: #b8722a;
+  --ok: #17795e;
+  --ok-bg: #e3f5ee;
+  --fail: #b3261e;
+  --fail-bg: #fdeceb;
+  --warn: #8a6100;
+}
+
+.dark {
+  --bg: #0b1416;
+  --surface: #101c1f;
+  --surface-2: #16272b;
+  --border: #21383d;
+  --text: #e6f0f2;
+  --text-dim: #8aa4ab;
+  --brand: #2bb6ae;
+  --brand-strong: #4fd0c8;
+  --accent: #e0a458;
+  --ok: #4ecfa4;
+  --ok-bg: #10322a;
+  --fail: #f2837c;
+  --fail-bg: #33191a;
+  --warn: #e0b45c;
+}
+
+html,
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-sans);
+}
+
+/* Hashes, addresses and block numbers are monospace (brief §35). */
+.mono {
+  font-family: var(--font-mono);
+  font-variant-ligatures: none;
+}
+
+/* §36: wide tables scroll inside their own container rather than
+   destroying the page layout on a phone. */
+.table-scroll {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 0.75rem;
+}
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.125rem 0.5rem;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.badge-ok {
+  color: var(--ok);
+  background: var(--ok-bg);
+}
+.badge-fail {
+  color: var(--fail);
+  background: var(--fail-bg);
+}
+.badge-neutral {
+  color: var(--text-dim);
+  background: var(--surface-2);
+}
+
+a {
+  color: var(--brand);
+  text-decoration: none;
+}
+a:hover {
+  color: var(--brand-strong);
+  text-decoration: underline;
+}
+
+th {
+  color: var(--text-dim);
+  font-weight: 600;
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+tbody tr {
+  border-top: 1px solid var(--border);
+}

@@ -45,3 +45,8 @@ contracts/lib/
 contracts/out/
 contracts/cache/
 contracts/broadcast/
+
+# ---- explorer UI ----
+explorer-web/.next/
+explorer-web/out/
+explorer-web/next-env.d.ts
