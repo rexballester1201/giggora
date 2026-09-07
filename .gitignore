@@ -1,0 +1,41 @@
+# ---- SECRETS: never commit (brief §30) ----
+.env
+.env.*
+!.env.example
+
+# Besu names validator private keys literally "key" with NO extension, so a
+# "*.key" rule does not match them. These explicit rules are what actually
+# protect the signing keys — do not remove them.
+blockchain/nodes/
+blockchain/keys/
+blockchain/genesis/networkFiles/
+**/key
+**/key.pub
+*.key
+*.pem
+**/nodeKey*
+**/privateKey*
+**/key.priv
+**/*.mnemonic
+secrets/
+
+# ---- chain data (regenerated; also holds the keys above) ----
+blockchain/data/
+**/besu-data/
+**/database/data/
+
+# ---- deps / build ----
+node_modules/
+dist/
+build/
+.next/
+out/
+target/
+cache/
+artifacts/
+broadcast/
+
+# ---- misc ----
+*.log
+.DS_Store
+coverage/
