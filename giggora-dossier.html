@@ -1,0 +1,708 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Giggora Project Dossier</title>
+<meta name="description" content="Handover, deployment and reference documentation for the Giggora blockchain, shelved 2026-09-07.">
+<style>
+/* ---------------------------------------------------------------------------
+   Palette inherited from explorer-web/app/globals.css — the chain already has a
+   visual identity (teal/slate, warm amber for the native coin, deliberately not
+   Etherscan blue or BscScan yellow). This page uses it rather than inventing a
+   second one.
+   --------------------------------------------------------------------------- */
+:root {
+  --bg:#f7f9fa; --surface:#ffffff; --surface-2:#f1f5f6; --border:#dde5e8;
+  --text:#0f2027; --text-dim:#5b7079; --text-faint:#8ea4ab;
+  --brand:#0d7d78; --brand-strong:#0a5f5b; --accent:#b8722a;
+  --ok:#17795e; --ok-bg:#e3f5ee; --fail:#b3261e; --fail-bg:#fdeceb;
+  --warn:#8a6100; --warn-bg:#fbf2dc;
+  --code-bg:#f1f5f6; --shadow:0 1px 2px rgba(15,32,39,.06), 0 8px 24px -16px rgba(15,32,39,.28);
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg:#0b1416; --surface:#101c1f; --surface-2:#16272b; --border:#21383d;
+    --text:#e6f0f2; --text-dim:#8aa4ab; --text-faint:#66838b;
+    --brand:#2bb6ae; --brand-strong:#4fd0c8; --accent:#e0a458;
+    --ok:#4ecfa4; --ok-bg:#10322a; --fail:#f2837c; --fail-bg:#33191a;
+    --warn:#e0b45c; --warn-bg:#2b2312;
+    --code-bg:#16272b; --shadow:0 1px 2px rgba(0,0,0,.4), 0 8px 24px -16px rgba(0,0,0,.8);
+  }
+}
+:root[data-theme="dark"] {
+  --bg:#0b1416; --surface:#101c1f; --surface-2:#16272b; --border:#21383d;
+  --text:#e6f0f2; --text-dim:#8aa4ab; --text-faint:#66838b;
+  --brand:#2bb6ae; --brand-strong:#4fd0c8; --accent:#e0a458;
+  --ok:#4ecfa4; --ok-bg:#10322a; --fail:#f2837c; --fail-bg:#33191a;
+  --warn:#e0b45c; --warn-bg:#2b2312;
+  --code-bg:#16272b; --shadow:0 1px 2px rgba(0,0,0,.4), 0 8px 24px -16px rgba(0,0,0,.8);
+}
+
+/* System stacks only. This file must render identically with no network. */
+:root {
+  --sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --mono: ui-monospace, "SF Mono", "Cascadia Mono", Menlo, Consolas, "Liberation Mono", monospace;
+  --serif: ui-serif, Georgia, "Iowan Old Style", "Times New Roman", serif;
+}
+
+*,*::before,*::after { box-sizing: border-box; }
+html { scroll-behavior: smooth; }
+@media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } *{animation:none!important;transition:none!important;} }
+body {
+  margin:0; background: var(--bg); color: var(--text);
+  font-family: var(--sans); font-size: 16px; line-height: 1.65;
+  -webkit-text-size-adjust: 100%;
+}
+
+/* --- shell ---------------------------------------------------------------- */
+.shell { display:grid; grid-template-columns: 1fr; max-width: 1240px; margin: 0 auto; }
+@media (min-width: 1060px) {
+  .shell { grid-template-columns: 268px minmax(0,1fr); gap: 48px; padding-right: 32px; }
+}
+
+/* --- masthead ------------------------------------------------------------- */
+.masthead {
+  grid-column: 1 / -1; padding: 40px 24px 28px;
+  border-bottom: 1px solid var(--border);
+}
+@media (min-width:1060px){ .masthead{ padding: 48px 0 32px 32px; } }
+.brand { display:flex; align-items:baseline; gap:12px; flex-wrap:wrap; }
+.brand h1 {
+  font-family: var(--serif); font-weight:600; font-size: clamp(30px,4.2vw,42px);
+  margin:0; letter-spacing:-.015em; text-wrap:balance;
+}
+.brand .tick {
+  font-family: var(--mono); font-size:13px; letter-spacing:.08em;
+  color: var(--brand); border:1px solid var(--brand); border-radius:3px;
+  padding:2px 7px; text-transform:uppercase;
+}
+.lede { max-width: 62ch; color: var(--text-dim); margin:14px 0 0; font-size:16.5px; }
+.status-line { display:flex; align-items:center; gap:10px; margin-top:20px; flex-wrap:wrap; }
+.pill {
+  font-family: var(--mono); font-size:11.5px; letter-spacing:.1em; text-transform:uppercase;
+  padding:4px 10px; border-radius:999px; font-weight:600;
+}
+.pill.shelved { background: var(--warn-bg); color: var(--warn); }
+.pill.done    { background: var(--ok-bg);   color: var(--ok); }
+.built { font-family: var(--mono); font-size:12px; color: var(--text-faint); }
+
+/* Chain facts: a data strip, not cards. Fixed-width labels, tabular figures. */
+.facts {
+  margin-top:26px; display:grid; gap:0 28px;
+  grid-template-columns: repeat(auto-fit, minmax(178px,1fr));
+  border-top:1px solid var(--border);
+}
+.fact { padding:14px 0 2px; border-bottom:1px solid var(--border); }
+.fact dt {
+  font-family:var(--mono); font-size:10.5px; letter-spacing:.11em; text-transform:uppercase;
+  color: var(--text-faint); margin:0 0 3px;
+}
+.fact dd { margin:0 0 10px; font-family:var(--mono); font-size:14px; font-variant-numeric: tabular-nums; }
+.fact dd.hash { font-size:11px; word-break:break-all; color: var(--text-dim); line-height:1.5; }
+
+/* --- controls ------------------------------------------------------------- */
+.controls { display:flex; gap:8px; margin-top:24px; flex-wrap:wrap; }
+button.ctl {
+  font: inherit; font-size:13.5px; cursor:pointer;
+  background: var(--surface); color: var(--text);
+  border:1px solid var(--border); border-radius:6px; padding:7px 14px;
+}
+button.ctl:hover { border-color: var(--brand); color: var(--brand); }
+button.ctl:focus-visible { outline:2px solid var(--brand); outline-offset:2px; }
+
+/* --- nav ------------------------------------------------------------------ */
+.nav { padding: 24px; border-bottom:1px solid var(--border); }
+@media (min-width:1060px){
+  .nav {
+    padding: 36px 0 64px 32px; border-bottom:none;
+    position: sticky; top:0; align-self:start; max-height:100vh; overflow-y:auto;
+  }
+}
+.nav-title {
+  font-family:var(--mono); font-size:10.5px; letter-spacing:.12em; text-transform:uppercase;
+  color:var(--text-faint); margin:0 0 14px;
+}
+.nav ul { list-style:none; margin:0; padding:0; }
+.nav-doc { margin-bottom:20px; }
+.nav-doc-link { display:block; text-decoration:none; margin-bottom:6px; }
+.nav-role { display:block; font-size:14px; font-weight:600; color:var(--text); }
+.nav-file { display:block; font-family:var(--mono); font-size:11px; color:var(--brand); }
+.nav-doc-link:hover .nav-role { color: var(--brand); }
+.nav-sub { border-left:1px solid var(--border); padding-left:12px; margin-left:1px; }
+.nav-sub li { margin:0; }
+.nav-sub a {
+  display:block; padding:3px 0; font-size:13px; color:var(--text-dim); text-decoration:none;
+}
+.nav-sub a:hover { color: var(--brand); }
+.nav a:focus-visible { outline:2px solid var(--brand); outline-offset:2px; border-radius:2px; }
+
+/* --- documents ------------------------------------------------------------ */
+main { padding: 8px 24px 96px; min-width:0; }
+@media (min-width:1060px){ main { padding: 36px 0 120px; } }
+.doc { max-width: 74ch; }
+.doc + .doc { margin-top: 96px; }
+.doc-head { padding-bottom:22px; border-bottom:2px solid var(--text); margin-bottom:32px; }
+.doc-role {
+  font-family:var(--mono); font-size:11px; letter-spacing:.12em; text-transform:uppercase;
+  color:var(--brand); margin:0 0 8px;
+}
+.doc-title { font-family:var(--serif); font-size:clamp(26px,3.4vw,34px); margin:0; letter-spacing:-.01em; text-wrap:balance; }
+.doc-blurb { color:var(--text-dim); margin:10px 0 0; max-width:60ch; }
+.doc-src { font-family:var(--mono); font-size:11.5px; color:var(--text-faint); margin:12px 0 0; }
+
+.doc h2 {
+  font-family:var(--serif); font-size:24px; font-weight:600; letter-spacing:-.01em;
+  margin:52px 0 4px; padding-top:20px; border-top:1px solid var(--border); text-wrap:balance;
+}
+.doc h3 { font-size:17px; font-weight:650; margin:34px 0 4px; letter-spacing:-.005em; text-wrap:balance; }
+.doc h4 { font-size:15px; font-weight:650; margin:26px 0 2px; color:var(--text-dim); }
+.doc p { margin:14px 0; }
+.doc strong { font-weight:650; }
+.doc a { color: var(--brand-strong); text-underline-offset:2px; }
+:root[data-theme="dark"] .doc a { color: var(--brand-strong); }
+.doc a:focus-visible { outline:2px solid var(--brand); outline-offset:2px; border-radius:2px; }
+
+.doc ul, .doc ol { margin:14px 0; padding-left:22px; }
+.doc li { margin:7px 0; }
+.doc li::marker { color: var(--text-faint); }
+
+hr.rule { border:none; border-top:1px solid var(--border); margin:36px 0; }
+
+blockquote {
+  margin:22px 0; padding:14px 18px; background:var(--warn-bg);
+  border-left:3px solid var(--warn); border-radius:0 4px 4px 0; color:var(--text);
+}
+blockquote p { margin:0; }
+
+code {
+  font-family:var(--mono); font-size:.875em; background:var(--code-bg);
+  padding:.13em .38em; border-radius:3px; word-break:break-word;
+}
+pre.code {
+  background:var(--code-bg); border:1px solid var(--border); border-radius:6px;
+  padding:14px 16px; overflow-x:auto; margin:18px 0; line-height:1.55;
+}
+pre.code code { background:none; padding:0; font-size:13px; word-break:normal; }
+
+.table-wrap { overflow-x:auto; margin:20px 0; border:1px solid var(--border); border-radius:6px; }
+table { border-collapse:collapse; width:100%; font-size:14.5px; }
+th, td { text-align:left; padding:9px 14px; border-bottom:1px solid var(--border); vertical-align:top; }
+thead th {
+  background:var(--surface-2); font-family:var(--mono); font-weight:600;
+  font-size:11px; letter-spacing:.07em; text-transform:uppercase; color:var(--text-dim);
+  white-space:nowrap;
+}
+tbody tr:last-child td { border-bottom:none; }
+td { font-variant-numeric: tabular-nums; }
+td code { white-space:nowrap; }
+
+.footer {
+  grid-column:1/-1; border-top:1px solid var(--border);
+  padding:24px 24px 48px; color:var(--text-faint); font-size:13px;
+}
+@media (min-width:1060px){ .footer{ padding:24px 0 56px 32px; } }
+
+/* --- print ---------------------------------------------------------------- */
+@media print {
+  :root {
+    --bg:#fff; --surface:#fff; --surface-2:#f2f2f2; --border:#c4ccce;
+    --text:#000; --text-dim:#333; --text-faint:#555;
+    --brand:#0a5f5b; --brand-strong:#0a5f5b; --warn-bg:#f6f2e6; --code-bg:#f4f6f6;
+  }
+  body { font-size:10.5pt; line-height:1.5; background:#fff; }
+  .shell { display:block; max-width:none; padding:0; }
+  .nav, .controls, .footer { display:none !important; }
+  .masthead { padding:0 0 16pt; border-bottom:1.5pt solid #000; }
+  main { padding:0; }
+  .doc { max-width:none; }
+  .doc + .doc { margin-top:0; }
+  /* Each document starts its own page — they are separate documents. */
+  .doc { break-before: page; }
+  #handover { break-before: avoid; }
+  .doc-head { break-after: avoid; }
+  h2, h3, h4 { break-after: avoid; break-inside: avoid; }
+  .doc h2 { margin-top:22pt; font-size:15pt; }
+  .doc h3 { font-size:12pt; }
+  table, pre.code, blockquote, .table-wrap { break-inside: avoid; }
+  thead { display: table-header-group; }
+  pre.code { border:1pt solid #c4ccce; }
+  a { color:#000; text-decoration:underline; }
+  @page { margin: 16mm 14mm; }
+}
+</style>
+</head>
+<body>
+<div class="shell">
+
+  <header class="masthead">
+    <div class="brand">
+      <h1>Giggora</h1>
+      <span class="tick">GIG</span>
+    </div>
+    <p class="lede">
+      An independent, EVM-compatible Layer-1 blockchain with its own native currency,
+      validator network and block explorer. This dossier is the complete handover:
+      what was built, what was measured, what is still undecided.
+    </p>
+
+    <div class="status-line">
+      <span class="pill shelved">Shelved 2026-09-07</span>
+      <span class="pill done">8 / 8 phases complete</span>
+      <span class="built">Mainnet not launched</span>
+    </div>
+
+    <dl class="facts">
+      <div class="fact"><dt>Client</dt><dd>Besu 26.8.1</dd></div>
+      <div class="fact"><dt>Consensus</dt><dd>QBFT · 4 validators</dd></div>
+      <div class="fact"><dt>Hardfork</dt><dd>cancun</dd></div>
+      <div class="fact"><dt>Chain IDs</dt><dd>4041 / 4042 / 4043</dd></div>
+      <div class="fact"><dt>Block period</dt><dd>2s · 300s idle</dd></div>
+      <div class="fact"><dt>Devnet head at shelving</dt><dd>2,143</dd></div>
+      <div class="fact" style="grid-column:1/-1">
+        <dt>Devnet genesis hash</dt>
+        <dd class="hash">0xf3e9fad05dc32b4a341f148f3c5b705c6c6e78a35f517986203f9d007b7c7fd6</dd>
+      </div>
+    </dl>
+
+    <div class="controls">
+      <button class="ctl" onclick="window.print()">Print / Save as PDF</button>
+      <button class="ctl" id="theme">Switch theme</button>
+    </div>
+  </header>
+
+  <nav class="nav" aria-label="Contents">
+    <p class="nav-title">Contents</p>
+    <ul>
+      <li class="nav-doc">
+        <a class="nav-doc-link" href="#handover">
+          <span class="nav-role">Start here</span>
+          <span class="nav-file">HANDOVER.md</span>
+        </a>
+        <ul class="nav-sub">
+          <li><a href="#handover-the-one-paragraph-version">The one-paragraph version</a></li>
+          <li><a href="#handover-what-you-are-inheriting">What you are inheriting</a></li>
+          <li><a href="#handover-what-is-not-done">What is NOT done</a></li>
+          <li><a href="#handover-three-decisions-someone-must-make-before-mainnet">Three decisions someone must make before mainnet</a></li>
+          <li><a href="#handover-things-that-will-surprise-you">Things that will surprise you</a></li>
+          <li><a href="#handover-where-the-bodies-are-buried">Where the bodies are buried</a></li>
+          <li><a href="#handover-resuming-work">Resuming work</a></li>
+          <li><a href="#handover-honest-assessment">Honest assessment</a></li>
+        </ul>
+      </li>
+      <li class="nav-doc">
+        <a class="nav-doc-link" href="#deploy">
+          <span class="nav-role">Operations</span>
+          <span class="nav-file">DEPLOY.md</span>
+        </a>
+        <ul class="nav-sub">
+          <li><a href="#deploy-1-local-the-whole-stack">1. Local — the whole stack</a></li>
+          <li><a href="#deploy-2-hardware-measured">2. Hardware, measured</a></li>
+          <li><a href="#deploy-3-production-topology">3. Production topology</a></li>
+          <li><a href="#deploy-4-order-of-deployment">4. Order of deployment</a></li>
+          <li><a href="#deploy-5-monitoring">5. Monitoring</a></li>
+          <li><a href="#deploy-6-backups">6. Backups</a></li>
+          <li><a href="#deploy-7-upgrades">7. Upgrades</a></li>
+          <li><a href="#deploy-8-when-it-breaks">8. When it breaks</a></li>
+          <li><a href="#deploy-9-before-mainnet-unresolved">9. Before mainnet — unresolved</a></li>
+        </ul>
+      </li>
+      <li class="nav-doc">
+        <a class="nav-doc-link" href="#claude">
+          <span class="nav-role">Reference</span>
+          <span class="nav-file">CLAUDE.md</span>
+        </a>
+        <ul class="nav-sub">
+          <li><a href="#claude-1-what-this-is">1. What this is</a></li>
+          <li><a href="#claude-2-non-negotiable-constraints">2. Non-negotiable constraints</a></li>
+          <li><a href="#claude-3-repository-layout">3. Repository layout</a></li>
+          <li><a href="#claude-4-things-that-will-bite-you">4. Things that will bite you</a></li>
+          <li><a href="#claude-5-conventions">5. Conventions</a></li>
+          <li><a href="#claude-6-commands">6. Commands</a></li>
+          <li><a href="#claude-7-verified-state">7. Verified state</a></li>
+          <li><a href="#claude-8-deployed-on-the-devnet">8. Deployed on the devnet</a></li>
+          <li><a href="#claude-9-open-decisions-do-not-inherit-these-by-accident">9. Open decisions — do not inherit these by accident</a></li>
+          <li><a href="#claude-10-what-does-not-exist">10. What does not exist</a></li>
+          <li><a href="#claude-11-regulatory-note-philippines">11. Regulatory note (Philippines)</a></li>
+          <li><a href="#claude-12-working-style-that-fits-this-repo">12. Working style that fits this repo</a></li>
+        </ul>
+      </li>
+    </ul>
+  </nav>
+
+  <main>
+      <section class="doc" id="handover">
+        <header class="doc-head">
+          <p class="doc-role">Start here</p>
+          <h1 class="doc-title">HANDOVER — Giggora</h1>
+          <p class="doc-blurb">State of the project, what is unfinished, and the decisions waiting for someone.</p>
+          <p class="doc-src">HANDOVER.md</p>
+        </header>
+        <p><strong>Date:</strong> 2026-09-07 · <strong>Status:</strong> SHELVED, complete and working · <strong>Author:</strong> built with Claude Code</p>
+<p>For whoever picks this up next — including the person who wrote it, six months from now.</p>
+<hr class="rule">
+<h2 id="handover-the-one-paragraph-version">The one-paragraph version</h2>
+<p>Giggora is a working, independent EVM Layer-1 blockchain with its own currency (GIG), a 4-validator QBFT network, ERC-20/721/1155 contracts, a crash-safe indexer, a REST API, a block explorer UI, wallet support and a sample DApp. Everything is built, tested and committed across 16 commits. It runs on one desktop. <strong>Nothing uses it, and no one else runs a validator.</strong> The technology is finished; the adoption problem is untouched. Mainnet has never been launched and the chain ID for it (4041) is reserved but unused.</p>
+<hr class="rule">
+<h2 id="handover-what-you-are-inheriting">What you are inheriting</h2>
+<h3 id="handover-it-genuinely-works">It genuinely works</h3>
+<p>Not a prototype. The chain produces blocks, contracts deploy and execute, the indexer survives <code>kill -9</code>, the API serves every documented endpoint, the UI renders real chain data, and MetaMask connects. Test totals:</p>
+<div class="table-wrap"><table><thead><tr><th>Suite</th><th>Result</th></tr></thead><tbody><tr><td>Network acceptance</td><td>7/7</td></tr><tr><td>Contracts (Foundry unit)</td><td>28/28</td></tr><tr><td>Contracts (on-chain)</td><td>12/12</td></tr><tr><td>Indexer (1000+ blocks, SIGKILL)</td><td>8/8</td></tr><tr><td>Explorer API</td><td>51/51</td></tr><tr><td>API regressions</td><td>12/12</td></tr><tr><td>Explorer UI</td><td>28/28</td></tr><tr><td>Wallet compatibility</td><td>19/19</td></tr><tr><td>QBFT transitions</td><td>11/11</td></tr></tbody></table></div>
+<p>Devnet at shelving time: <strong>block 2,143 · 22,578 transactions · 4 tokens</strong>.</p>
+<h3 id="handover-one-command-starts-everything">One command starts everything</h3>
+<pre class="code" data-lang="bash"><code>npm run stack</code></pre>
+<p>Chain, indexer, API and explorer UI, in containers. UI on <code>localhost:3000</code>, API on <code>localhost:4100</code>, RPC on <code>localhost:8545</code>. <code>npm run stack:down</code> stops it.</p>
+<p>The explorer services sit behind a compose <strong>profile</strong>, so plain <code>docker compose up -d</code> gives you the chain alone. That is deliberate: the two explorer images cost ~800 MB and land in a virtual disk that never shrinks.</p>
+<hr class="rule">
+<h2 id="handover-what-is-not-done">What is NOT done</h2>
+<p>Be clear-eyed about this; it is most of the remaining work and none of it is code.</p>
+<ol>
+<li><strong>No application.</strong> Nothing runs on this chain. That is the real gap, and it is not a technical one.</li>
+<li><strong>No independent validators.</strong> All four are on one desktop. QBFT "tolerates one faulty validator" is true of the algorithm and meaningless here — one power cut takes all four. Moving them to four VPSes <em>you</em> own and pay for changes uptime, <strong>not</strong> decentralisation. It stays one operator's chain.</li>
+<li><strong>Mainnet never launched.</strong> Chain ID 4041 is reserved and unused.</li>
+<li><strong><code>deploy/</code> was never provisioned.</strong> The compose files, Caddyfile and ufw rules encode the topology and security posture. They have never touched a real host. Treat them as a well-reasoned starting point, not evidence.</li>
+<li><strong>Test suites crash on HTTP 429</strong> instead of reporting it. Run them ~60s apart or the API's own rate limiter produces phantom failures. This cost real debugging time twice.</li>
+</ol>
+<hr class="rule">
+<h2 id="handover-three-decisions-someone-must-make-before-mainnet">Three decisions someone must make before mainnet</h2>
+<p>Documented but deliberately not decided. Do not inherit them by accident.</p>
+<h3 id="handover-1-the-fee-market">1. The fee market</h3>
+<p><code>fixedBaseFee: true</code> is currently on. It fixed a genuine bug — the EIP-1559 base fee decayed below <code>min-gas-price</code> on an idle chain, wallets then underpaid the floor, and transactions were accepted into the mempool and <strong>silently never mined</strong>. MetaMask just spun.</p>
+<p>But it fixes it by <strong>removing the fee market</strong>. The base fee no longer responds to demand, so on a congested mainnet there is no price signal to prioritise transactions and the mempool backs up until Besu drops them at its 4096 default.</p>
+<p>Either keep it (and raise txpool limits and monitor depth), or restore EIP-1559 dynamics with a <code>min-gas-price</code> low enough that a decayed base fee still clears it, so the original bug cannot recur.</p>
+<h3 id="handover-2-validator-count-and-hosting">2. Validator count and hosting</h3>
+<p><strong>Seven, not four</strong>, and on separate hosts, providers and regions. Seven tolerates two failures; four tolerates one; five buys nothing over four, because efficient sizes are <code>n = 3f + 1</code>.</p>
+<p>This matters more than it sounds. Quorum loss was induced for real: stopping 2 of 4 validators produced <strong>zero blocks in 50 seconds under load</strong>, and every container reported <em>healthy</em> the whole time.</p>
+<h3 id="handover-3-a-real-key-ceremony">3. A real key ceremony</h3>
+<p>Generate validator keys <strong>on the validator hosts themselves</strong>. A key that has existed on a shared machine is not a production key. This is the one step that cannot be redone later without a validator rotation.</p>
+<hr class="rule">
+<h2 id="handover-things-that-will-surprise-you">Things that will surprise you</h2>
+<p>Ordered by how much time they will cost if you do not know them.</p>
+<p><strong>QBFT does not degrade — it stops.</strong> Below quorum, block production is exactly zero. No partial availability, no read-only mode, no slower blocks. Every container stays healthy. A process-level health check reports everything fine. That is precisely why <code>scripts/monitor-chain.mjs</code> exists and checks quorum <em>before</em> liveness — it catches the cause about two minutes before the symptom.</p>
+<p><strong>Recovery takes longer than the outage.</strong> A ~3 minute quorum loss cost about <strong>7 minutes</strong> of total downtime. After quorum was restored the validators sat in round-change deadlock — split across rounds 4, 5 and 6 — for roughly four more minutes before converging. The round-change timeout backs off <strong>exponentially</strong>, so the longer the outage, the longer the recovery. During that window, do not restart nodes to "help": every restart resets that node's progress.</p>
+<p><strong>You cannot vote out a dead validator without quorum.</strong> <code>qbft_proposeValidatorVote</code> needs a majority of the <em>current</em> set. Below quorum you cannot shrink your way out. This is the trap that makes prevention matter more than recovery.</p>
+<p><strong>Consensus config changes apply at node RESTART, not at the scheduled block</strong>, and require stopping <em>all</em> nodes together — never a rolling restart. Verified twice by accident: transitions scheduled for blocks 1748 and 2131 took effect at 1731 and 2092.</p>
+<p><strong>Everything in <code>docs/</code> with a number in it was measured</strong>, not estimated. An earlier version of <code>docs/deployment.md</code> specified 8 GB RAM per validator on the reasoning that "the JVM wants 4 GB of heap". Measurement said <strong>~350 MB</strong>. That number would have driven a purchase.</p>
+<hr class="rule">
+<h2 id="handover-where-the-bodies-are-buried">Where the bodies are buried</h2>
+<p>Full list in <code>CLAUDE.md</code> §4. The ones most likely to waste a day:</p>
+<ul>
+<li><strong><code>tmpfs: /tmp</code> must include <code>exec</code></strong> or every validator crash-loops with what looks like a corrupt library file. Besu <code>dlopen()</code>s what it extracts there.</li>
+<li><strong><code>fixedBaseFee</code> and the beacon-roots pre-deploy are both load-bearing.</strong> Remove either and the chain breaks in a way that does not point at the cause.</li>
+<li><strong>Enodes need IP literals</strong>, not hostnames.</li>
+<li><strong>Docker fixes logging at container creation</strong> — <code>docker compose start</code> will not apply a changed <code>logging:</code> block. Check with <code>docker inspect</code>; <code>map[]</code> means no cap is in effect.</li>
+<li><strong><code>.gitignore</code> must keep <code>blockchain/nodes/</code> and <code>**/key</code>.</strong> Besu names validator keys literally <code>key</code>, with no extension, so <code>*.key</code> does not match them. Four private keys were once staged for commit before this was caught.</li>
+</ul>
+<hr class="rule">
+<h2 id="handover-resuming-work">Resuming work</h2>
+<pre class="code" data-lang="bash"><code>docker compose up -d                # chain only
+npm run verify                      # 7/7 expected
+npm run stack                       # add indexer + API + UI
+npm run monitor                     # should be all-ok, exit 0</code></pre>
+<p>If the explorer shows old numbers, the indexer is not running — the page says so itself with a banner rather than quietly serving stale data.</p>
+<p>Read <code>git log</code> before changing anything load-bearing. The commit messages carry the reasoning, including what was tried and rejected; they are the design record for this project, not a changelog.</p>
+<hr class="rule">
+<h2 id="handover-honest-assessment">Honest assessment</h2>
+<p>The engineering is sound and unusually well-verified for a project this size — failure modes were induced deliberately rather than reasoned about, and several confident claims were disproven by testing and corrected in place.</p>
+<p>But <strong>a blockchain with no users is a distributed database with extra steps.</strong> Every remaining question is about adoption, governance and jurisdiction, not code. The most promising direction identified is not "who will use my chain" but <strong>"which parties already need a shared record and do not trust each other?"</strong> — consortium use cases where the validator set <em>is</em> the value: credential verification, procurement transparency, permit issuance, election-results publishing (the transparency layer, emphatically <strong>not</strong> vote casting or counting).</p>
+<p>Regulatory reality also constrains the obvious path: BSP's moratorium on new VASP licences is indefinite, and SEC CASP registration requires ₱100M paid-up capital. Shipping software is unregulated; issuing a token to the public is not.</p>
+<p>Shelving this at a genuinely finished state, rather than half-built, was the right call.</p>
+      </section>
+
+      <section class="doc" id="deploy">
+        <header class="doc-head">
+          <p class="doc-role">Operations</p>
+          <h1 class="doc-title">DEPLOY — Giggora</h1>
+          <p class="doc-blurb">Running it locally, measured hardware requirements, production topology, and what to do when it breaks.</p>
+          <p class="doc-src">DEPLOY.md</p>
+        </header>
+        <p>The single entry point for running Giggora, from a laptop to a real network.</p>
+<p>Depth lives in <a href="docs/deployment.md"><code>docs/deployment.md</code></a>, <a href="deploy/README.md"><code>deploy/README.md</code></a>, <a href="docs/runbook-quorum-loss.md"><code>docs/runbook-quorum-loss.md</code></a> and <a href="docs/validator-rotation.md"><code>docs/validator-rotation.md</code></a>. This file is the map.</p>
+<blockquote><strong>Nothing here has been provisioned against a real host.</strong> The compose files, Caddyfile and firewall rules encode topology and security posture. They are a reasoned starting point, not evidence of a deployment.</blockquote>
+<hr class="rule">
+<h2 id="deploy-1-local-the-whole-stack">1. Local — the whole stack</h2>
+<pre class="code" data-lang="bash"><code>npm install
+bash scripts/create-genesis.sh
+npm run stack</code></pre>
+<p>That generates a genesis and four validator keys, then brings up chain, indexer, API and explorer UI in containers.</p>
+<div class="table-wrap"><table><thead><tr><th>Service</th><th>URL</th></tr></thead><tbody><tr><td>Explorer UI</td><td>http://localhost:3000</td></tr><tr><td>Explorer API</td><td>http://localhost:4100</td></tr><tr><td>JSON-RPC</td><td>http://localhost:8545</td></tr><tr><td>JSON-RPC (WS)</td><td>ws://localhost:8546</td></tr></tbody></table></div>
+<pre class="code" data-lang="bash"><code>npm run verify        # network acceptance test, 7/7 expected
+npm run monitor       # health; exit 0 ok / 1 warn / 2 critical
+npm run stack:down    # stop everything</code></pre>
+<p><strong>Chain only</strong> (no explorer, much lighter):</p>
+<pre class="code" data-lang="bash"><code>docker compose up -d</code></pre>
+<p>The explorer services sit behind a compose profile deliberately — the two images cost ~800 MB and land in a virtual disk that never shrinks.</p>
+<p><strong>Run the explorer in containers OR on the host, never both</strong> — they bind the same ports (3000, 4100). On the host, for editing code:</p>
+<pre class="code" data-lang="bash"><code>node indexer/src/index.ts</code></pre>
+<pre class="code" data-lang="bash"><code>node explorer-api/src/server.ts</code></pre>
+<pre class="code" data-lang="bash"><code>npm run web:dev</code></pre>
+<h3 id="deploy-connect-metamask">Connect MetaMask</h3>
+<div class="table-wrap"><table><thead><tr><th>Field</th><th>Value</th></tr></thead><tbody><tr><td>Network name</td><td>Giggora Devnet</td></tr><tr><td>RPC URL</td><td><code>http://localhost:8545</code></td></tr><tr><td>Chain ID</td><td><code>4043</code></td></tr><tr><td>Currency symbol</td><td><code>GIG</code></td></tr><tr><td>Block explorer</td><td><code>http://localhost:3000</code></td></tr></tbody></table></div>
+<p>Devnet accounts use published Anvil/Besu dev keys. They are public knowledge and hold no value. <strong>Never use them on testnet or mainnet.</strong></p>
+<h3 id="deploy-deploying-a-contract-via-remix">Deploying a contract via Remix</h3>
+<p>Point MetaMask at Giggora, then use <strong>Injected Provider – MetaMask</strong>.</p>
+<p><strong>Set EVM version to <code>cancun</code></strong> in Advanced Configurations. Giggora is a Cancun chain; newer compilers default to Prague and emit opcodes the validators do not implement. It fails in a way that looks like a Remix bug rather than a config one.</p>
+<hr class="rule">
+<h2 id="deploy-2-hardware-measured">2. Hardware, measured</h2>
+<p>Not estimated from documentation — measured on a running chain with <code>--profile=ENTERPRISE</code>, the same flag <code>deploy/</code> uses.</p>
+<div class="table-wrap"><table><thead><tr><th></th><th>Idle</th><th>Under 10 tx/s</th></tr></thead><tbody><tr><td>RAM per validator</td><td>284–359 MB</td><td>314–359 MB (barely moves)</td></tr><tr><td>CPU per validator</td><td>2–4% of a core</td><td>20–57% of a core</td></tr></tbody></table></div>
+<p><strong>RAM is not the constraint. CPU under sustained load is.</strong></p>
+<h3 id="deploy-what-to-provision">What to provision</h3>
+<div class="table-wrap"><table><thead><tr><th>Role</th><th>vCPU</th><th>RAM</th><th>Disk</th><th>Public</th></tr></thead><tbody><tr><td>Validator</td><td>2</td><td>4 GB</td><td>80 GB SSD</td><td><strong>none</strong></td></tr><tr><td>RPC node</td><td>4</td><td>4 GB</td><td>160 GB SSD</td><td>443 only</td></tr><tr><td>Explorer</td><td>4</td><td>8 GB</td><td>200 GB SSD</td><td>443 only</td></tr></tbody></table></div>
+<p>4 GB rather than the observed ~350 MB, deliberately: the JVM sizes its heap from available memory, so a 2 GB host shrinks the heap and can spend its time in GC under load it would otherwise absorb. And memory grows with <strong>state</strong>, not block count — 2,000 blocks holding a few contracts is not a state size.</p>
+<h3 id="deploy-disk-growth">Disk growth</h3>
+<div class="table-wrap"><table><thead><tr><th></th><th>Measured</th></tr></thead><tbody><tr><td>Per transaction</td><td>3,889 bytes</td></tr><tr><td>Per block (~11 tx)</td><td>43 KB</td></tr><tr><td>Besu logs at INFO</td><td>9 MB/day, <strong>independent of load</strong></td></tr></tbody></table></div>
+<div class="table-wrap"><table><thead><tr><th>Usage</th><th>Per day</th><th>Per year</th></tr></thead><tbody><tr><td>Idle</td><td>~11 MB</td><td>~4 GB</td></tr><tr><td>1 tx/s sustained</td><td>337 MB</td><td>~123 GB</td></tr><tr><td>10 tx/s sustained</td><td>3.4 GB</td><td>~1.2 TB</td></tr></tbody></table></div>
+<p>Disk is driven by <strong>use</strong>, not uptime. Cap the logs — they grow whether or not anyone uses the chain, and on Docker they land in a virtual disk that never shrinks.</p>
+<h3 id="deploy-cost-for-reference">Cost, for reference</h3>
+<div class="table-wrap"><table><thead><tr><th>Provider</th><th>Plan</th><th>Specs</th><th>Price</th></tr></thead><tbody><tr><td>Contabo</td><td>Cloud VPS 4</td><td>4 vCPU, 8 GB, 100 GB SSD</td><td>~€5.50/mo</td></tr><tr><td>Hetzner</td><td>CX33</td><td>4 vCPU, 8 GB, 80 GB NVMe</td><td>~€8.49/mo</td></tr><tr><td>DigitalOcean</td><td>General Purpose</td><td>8 GB</td><td>~$63/mo</td></tr></tbody></table></div>
+<p>7 validators + RPC + explorer ≈ <strong>€50–80/month</strong> at the first two.</p>
+<hr class="rule">
+<h2 id="deploy-3-production-topology">3. Production topology</h2>
+<p>Split by role. The devnet's four-validators-on-one-box layout gives the <em>appearance</em> of fault tolerance while sharing a kernel, a disk and a blast radius.</p>
+<pre class="code"><code>                       Internet
+                          │  443 only
+                   ┌──────┴──────┐
+                   │    Caddy    │  TLS, rate limit, hybrid PQ key exchange
+                   └──────┬──────┘
+                          │ 127.0.0.1
+                   ┌──────┴──────┐
+                   │  RPC node   │  holds NO validator key → cannot propose
+                   └──────┬──────┘
+                          │ p2p 30303, allow-listed to validator IPs only
+      ┌───────────┬───────┴───────┬───────────┐
+  validator-1  validator-2   validator-3  validator-4      ... 7 for mainnet
+   host A        host B         host C       host D
+   (never reachable from the internet)
+
+   explorer host: Postgres + indexer + API + web → reads the RPC node</code></pre>
+<h3 id="deploy-sizing">Sizing</h3>
+<div class="table-wrap"><table><thead><tr><th>n</th><th>Quorum</th><th>Survives down</th><th>Survives byzantine</th></tr></thead><tbody><tr><td>4</td><td>3</td><td>1</td><td>1</td></tr><tr><td><strong>7</strong></td><td><strong>5</strong></td><td><strong>2</strong></td><td><strong>2</strong></td></tr><tr><td>10</td><td>7</td><td>3</td><td>3</td></tr></tbody></table></div>
+<p><strong>Use 7 for mainnet.</strong> Five buys nothing over four — efficient sizes are <code>n = 3f+1</code>. Spread across <strong>different providers and regions</strong>; several VPSes from one provider in one region is a correlated failure, not independent ones.</p>
+<hr class="rule">
+<h2 id="deploy-4-order-of-deployment">4. Order of deployment</h2>
+<ol>
+<li><strong>Key ceremony</strong> — generate keys <strong>on each validator host</strong>, not on a shared machine. <code>chmod 600</code>. Never in git, never in an image layer, never in a backup that leaves the host. Record the <em>addresses</em> centrally; they go into the genesis. This is the one step that cannot be redone without a rotation.</li>
+<li><strong>Genesis</strong> — generate once, distribute byte-identical, verify the hash on every node.</li>
+</ol>
+<pre class="code" data-lang="bash"><code>bash scripts/create-genesis.sh &amp;&amp; sha256sum blockchain/genesis/genesis.json</code></pre>
+<p>   A differing genesis means a different chain, and the symptom is a network    that never forms consensus while every node looks healthy.</p>
+<p>   Settle these first — they are permanent: chain ID <strong>4041</strong>, initial supply and    allocation, <code>blockperiodseconds</code> / <code>emptyblockperiodseconds</code>, <code>blockreward</code>    (0 at genesis is the current decision), the validator set, and the fee-market    question below.</p>
+<ol start="3">
+<li><strong>Validators</strong> — one per host, from <code>deploy/validator/</code>. <strong>Bring up all of them before expecting blocks</strong>; below quorum nothing happens, which looks like failure and is not.</li>
+<li><strong>RPC node</strong> — <code>deploy/rpc/</code>. Joins as a non-validator, syncs, serves.</li>
+<li><strong>Caddy</strong> — TLS in front of the RPC node. Test against the ACME <em>staging</em> endpoint first to avoid rate limits.</li>
+<li><strong>Explorer stack</strong> — <code>deploy/explorer/</code>. Postgres must not be publicly reachable. Set <code>TRUSTED_PROXY_CIDR</code> to Caddy's address: unset, every request appears to come from the proxy and the rate limiter collapses into one global bucket; set to <code>true</code>, it becomes client-controlled and decorative.</li>
+<li><strong>Monitoring</strong> — one-minute timer, per host.</li>
+</ol>
+<h3 id="deploy-firewall">Firewall</h3>
+<pre class="code" data-lang="bash"><code>sudo PEERS="10.0.0.12 10.0.0.13 10.0.0.14 10.0.0.20" SSH_FROM="203.0.113.5" \
+  bash deploy/firewall/validator-ufw.sh</code></pre>
+<p>Validators accept p2p only from each other and the RPC node. Nothing else, from anywhere.</p>
+<h3 id="deploy-post-quantum-tls-comes-free">Post-quantum TLS comes free</h3>
+<p>Caddy is Go-based, and Go 1.24+ negotiates the <code>X25519MLKEM768</code> hybrid key exchange by default, so RPC and explorer sessions already resist harvest-now-decrypt-later.</p>
+<pre class="code" data-lang="bash"><code>openssl s_client -connect rpc.giggora.example:443 -groups X25519MLKEM768 &lt;/dev/null 2&gt;&amp;1 | grep -i "group\|Negotiated"</code></pre>
+<p><strong>This protects the transport only.</strong> The chain's secp256k1 signatures are not post-quantum. Do not describe Giggora as quantum-resistant on the strength of its TLS.</p>
+<hr class="rule">
+<h2 id="deploy-5-monitoring">5. Monitoring</h2>
+<pre class="code" data-lang="bash"><code>* * * * * cd /opt/giggora &amp;&amp; node scripts/monitor-chain.mjs --json &gt;&gt; /var/log/giggora-health.log 2&gt;&amp;1</code></pre>
+<p>Exit <code>0</code> ok, <code>1</code> warn, <code>2</code> critical. <strong>Alert on 2</strong>; review 1 daily.</p>
+<p>Alert on these specifically, because a process check catches none of them:</p>
+<ul>
+<li><strong>quorum</strong> — fires ~2 minutes before liveness does</li>
+<li><strong>proposers</strong> — a validator still in the set that has stopped producing</li>
+<li><strong>rounds</strong> — escalation, correlated with liveness so recovery churn does not page</li>
+<li><strong>indexer lag</strong> — the explorer serving stale data while looking healthy</li>
+</ul>
+<p>Besu also exposes Prometheus metrics on <code>127.0.0.1:9545</code>. Scrape over the private network; never expose it.</p>
+<hr class="rule">
+<h2 id="deploy-6-backups">6. Backups</h2>
+<pre class="code" data-lang="bash"><code>bash scripts/backup.sh --with-index
+bash scripts/backup.sh --verify backups/&lt;timestamp&gt;</code></pre>
+<p><strong>Verify every backup.</strong> An unverified backup is a hope — the verifier parses the genesis rather than checking the file exists, and an earlier version of it reported a perfectly good backup as corrupt because of a path bug.</p>
+<p>Deliberately <strong>not</strong> backed up: validator private keys (a key that travels to a backup server has a second attack surface — back them up out of band, encrypted) and Besu chain data (a cache that re-syncs from peers).</p>
+<hr class="rule">
+<h2 id="deploy-7-upgrades">7. Upgrades</h2>
+<div class="table-wrap"><table><thead><tr><th>Change</th><th>Procedure</th></tr></thead><tbody><tr><td>Besu version</td><td>Pin the new tag, cycle <strong>one node at a time</strong>, verify it rejoins</td></tr><tr><td>Consensus parameters</td><td><code>scripts/schedule-transition.mjs</code> — read its caveats first</td></tr><tr><td>Validator set</td><td><code>docs/validator-rotation.md</code> — add before removing</td></tr><tr><td>Explorer / indexer / API</td><td>Ordinary rolling deploys; they hold no consensus state</td></tr></tbody></table></div>
+<p><strong>Consensus parameter changes require stopping every node together.</strong> A rolling restart causes <code>TimestampMoreRecentThanParent</code> stalls while nodes disagree about the block period. And the change applies at <strong>restart</strong>, not at the scheduled block — the <code>block</code> field is a floor, not a trigger.</p>
+<hr class="rule">
+<h2 id="deploy-8-when-it-breaks">8. When it breaks</h2>
+<p><strong>QBFT does not degrade. It stops.</strong> Below quorum, block production is exactly zero and every container stays healthy. Full procedure in <a href="docs/runbook-quorum-loss.md"><code>docs/runbook-quorum-loss.md</code></a>; the essentials:</p>
+<ul>
+<li><strong>Restore quorum. That is the whole fix.</strong> Start enough validators to reach <code>ceil(2n/3)</code>.</li>
+<li><strong>Then wait — expect recovery to take longer than the outage.</strong> A ~3 minute quorum loss cost ~7 minutes of downtime; the validators sat in round-change deadlock for ~4 minutes after quorum returned. Backoff is exponential.</li>
+<li><strong>Do not restart nodes to "help".</strong> Every restart resets that node's progress. Wait at least 10 minutes after quorum is restored before intervening further.</li>
+<li><strong>You cannot vote out a dead validator without quorum</strong> — <code>qbft_proposeValidatorVote</code> needs a majority of the current set. You cannot shrink your way out. Prevention matters more than recovery.</li>
+<li><strong>You cannot roll back.</strong> QBFT finality is absolute.</li>
+</ul>
+<hr class="rule">
+<h2 id="deploy-9-before-mainnet-unresolved">9. Before mainnet — unresolved</h2>
+<p><strong>The fee market.</strong> <code>fixedBaseFee</code> is on. It fixed a real bug (base fee decayed below <code>min-gas-price</code>, wallets underpaid, transactions accepted and silently never mined) but removes congestion pricing entirely. Either keep it and raise txpool limits, or restore EIP-1559 with a low enough <code>min-gas-price</code> that the original bug cannot recur. <strong>Do not inherit this by accident.</strong></p>
+<p><strong>Seven validators on separate providers</strong>, and <strong>a real key ceremony</strong>.</p>
+<p><strong>Regulatory (Philippines).</strong> Running the software is unregulated; selling, offering or distributing tokens is not. SEC MC No. 4 &amp; 5, s. 2025 require CASP registration (₱100M paid-up capital), and BSP's moratorium on new VASP licences has been extended indefinitely since 1 September 2025. Keep it a testnet with explicitly valueless tokens and say so plainly, or take advice before issuing anything.</p>
+      </section>
+
+      <section class="doc" id="claude">
+        <header class="doc-head">
+          <p class="doc-role">Reference</p>
+          <h1 class="doc-title">CLAUDE.md — Giggora</h1>
+          <p class="doc-blurb">Architecture, conventions, and every load-bearing gotcha that will otherwise cost you a day.</p>
+          <p class="doc-src">CLAUDE.md</p>
+        </header>
+        <p>Guidance for Claude Code (and any future agent) working in this repository.</p>
+<p><strong>Status: SHELVED 2026-09-07.</strong> All 8 phases complete and verified. The devnet is real and runs on one desktop. <strong>Mainnet (chain ID 4041) is not launched and should not be</strong> until the open decisions below are settled.</p>
+<hr class="rule">
+<h2 id="claude-1-what-this-is">1. What this is</h2>
+<p>Giggora is an independent, EVM-compatible Layer-1 blockchain with its own native currency (<strong>GIG</strong>), validator network, and block explorer. It is sovereign after genesis: no settlement layer, no parent chain, no bridge.</p>
+<div class="table-wrap"><table><thead><tr><th>Property</th><th>Value</th></tr></thead><tbody><tr><td>Client</td><td>Hyperledger Besu 26.8.1</td></tr><tr><td>Consensus</td><td>QBFT — Byzantine fault tolerant, <strong>absolute finality, no reorgs</strong></td></tr><tr><td>Hardfork</td><td>Cancun</td></tr><tr><td>Native currency</td><td>GIG, 18 decimals, 1,000,000,000 total supply</td></tr><tr><td>Chain IDs</td><td><strong>4041</strong> mainnet (reserved, unlaunched) · <strong>4042</strong> testnet · <strong>4043</strong> devnet</td></tr><tr><td>Block period</td><td>2s under load · 300s when idle (<code>emptyblockperiodseconds</code>)</td></tr><tr><td>Devnet genesis hash</td><td><code>0xf3e9fad05dc32b4a341f148f3c5b705c6c6e78a35f517986203f9d007b7c7fd6</code></td></tr></tbody></table></div>
+<p><strong>Absolute finality is load-bearing in the design.</strong> Because QBFT cannot reorg, the indexer has no reorg handling, no rollback, no orphan tracking. That is a large slice of the hardest code in any explorer, deleted by a consensus choice. Do not "add reorg support" — it would be dead code built on a false premise.</p>
+<hr class="rule">
+<h2 id="claude-2-non-negotiable-constraints">2. Non-negotiable constraints</h2>
+<p>These come from the project brief and have been honoured throughout. Breaking one is a defect regardless of what else the change achieves.</p>
+<ul>
+<li><strong>Never commit private keys, mnemonics, passwords, API keys or DB credentials.</strong> Use <code>.env.example</code>. Besu names validator keys literally <code>key</code> with no extension, so a <code>*.key</code> glob does <strong>not</strong> match them — the explicit <code>blockchain/nodes/</code> and <code>**/key</code> rules in <code>.gitignore</code> are what actually protect them. This was nearly shipped once; four validator keys were staged before being caught.</li>
+<li><strong>Never expose validator private keys through any API.</strong></li>
+<li><strong>Never expose unrestricted admin RPC publicly.</strong> <code>ADMIN</code>, <code>DEBUG</code> and <code>MINER</code> namespaces are disabled everywhere.</li>
+<li><strong>Do not expose database ports publicly.</strong></li>
+<li><strong>Never fake blockchain functionality or present mock data as real chain data.</strong> The explorer reads a database, and when that database is stale it says so (see <code>explorer-web/components/Staleness.tsx</code>).</li>
+<li><strong>Never silently ignore errors.</strong></li>
+</ul>
+<hr class="rule">
+<h2 id="claude-3-repository-layout">3. Repository layout</h2>
+<pre class="code"><code>blockchain/config/chain.config.json   SINGLE SOURCE OF TRUTH
+blockchain/genesis/                   generated genesis + qbftConfigFile
+blockchain/nodes/                     validator keys + chain data (GITIGNORED)
+database/migrations/                  001-004, all idempotent
+indexer/src/                          crash-safe chain indexer
+explorer-api/src/                     Fastify API
+explorer-web/                         Next.js 15 App Router UI
+dapp/                                 dependency-free EIP-1193 sample DApp
+deploy/{validator,rpc,explorer,firewall}/   production topology (NEVER PROVISIONED)
+docs/                                 architecture, deployment, runbooks
+scripts/                              everything operational</code></pre>
+<p><strong><code>chain.config.json</code> is the single source of truth.</strong> Everything else is generated:</p>
+<pre class="code"><code>chain.config.json → gen-config.mjs → .env + qbftConfigFile.json
+                  → besu operator generate-blockchain-config → genesis.json + keys
+                  → docker-compose.yml → running network</code></pre>
+<p>Never hand-edit <code>.env</code>, <code>qbftConfigFile.json</code> or <code>genesis.json</code>. Change <code>chain.config.json</code> and regenerate. The generator <strong>verifies allocations sum to the declared total supply</strong> and refuses to emit a mismatched genesis.</p>
+<hr class="rule">
+<h2 id="claude-4-things-that-will-bite-you">4. Things that will bite you</h2>
+<p>Every item was hit and fixed for real. They are all load-bearing — "simplifying" one breaks the system in a way that is genuinely hard to diagnose.</p>
+<h3 id="claude-chain">Chain</h3>
+<ol>
+<li><strong>Cancun works ONLY because EIP-4788 beacon-roots is pre-deployed.</strong> Cancun system-calls the beacon-roots contract every block; on a non-PoS chain that address is empty and Besu logs <code>Invalid system call address</code> forever. The genesis pre-deploys it at <code>0x000F3df6D732807Ef1319fB7B8bB8522d0Beac02</code>. Cancun is not optional: <strong>OpenZeppelin 5.6 emits <code>mcopy</code></strong>, a Cancun opcode, so a Shanghai chain cannot compile current OpenZeppelin at all.</li>
+<li><strong><code>fixedBaseFee: true</code> is mandatory.</strong> Without it the EIP-1559 base fee decays ~12.5% per empty block, drops below <code>min-gas-price</code>, and because <code>eth_maxPriorityFeePerGas</code> returns 0 here, wallets estimate <em>under</em> the node's floor. Transactions are then accepted into the pool and <strong>silently never mined</strong> — MetaMask spins forever with no error. <code>gen-config.mjs</code> refuses to build a genesis where <code>baseFeePerGas</code> and <code>minGasPriceWei</code> disagree.</li>
+<li><strong>Enode URLs need IP literals, not hostnames.</strong> A DNS name is rejected with <code>Invalid ip address</code> and every node using that bootnode crash-loops. Hence static IPs in <code>docker-compose.yml</code>.</li>
+<li><strong>Set <code>--p2p-host</code> explicitly with <code>--nat-method=NONE</code>.</strong> Otherwise Besu's Docker NAT manager advertises <code>enode://…@0.0.0.0:30303</code>, peers cannot dial back, and the bootnode sits at 0 peers while everything stalls.</li>
+<li><strong>Discovery alone does not form a mesh — <code>static-nodes.json</code> does.</strong> It must list every <em>other</em> node and never itself; Besu rejects a self-reference.</li>
+</ol>
+<h3 id="claude-qbft-upgrades-scriptsschedule-transitionmjs">QBFT upgrades (<code>scripts/schedule-transition.mjs</code>)</h3>
+<p>Established by testing, not documentation. All three surprised us:</p>
+<ol start="6">
+<li><strong><code>transitions</code> must sit INSIDE <code>config</code>.</strong> At the top level it is <em>silently ignored</em> — no error, no warning, the change simply never happens.</li>
+<li><strong>It applies at NODE RESTART, not at the scheduled block.</strong> Verified twice: a transition scheduled for 1748 was in force at 1731; one scheduled for 2131 took effect at 2092. The <code>block</code> field behaves like a floor, not a trigger.</li>
+<li><strong>Stop every node, then start them. Never a rolling restart.</strong> While nodes disagree about the block period, proposals fail timestamp validation with <code>TimestampMoreRecentThanParent</code> and production stalls until round-changes.</li>
+</ol>
+<h3 id="claude-docker">Docker</h3>
+<ol start="9">
+<li><strong><code>tmpfs: /tmp</code> MUST include <code>exec</code>.</strong> Besu extracts JNI libraries to <code>java.io.tmpdir</code> and <code>dlopen()</code>s them. Docker mounts tmpfs <code>noexec</code> by default, and every validator crash-loops with <code>UnsatisfiedLinkError: libckzg4844jni.so: failed to map segment from shared object</code> — which reads like a corrupt file, not a mount option.</li>
+<li><strong>Besu leaks its native libraries to <code>/tmp</code> on every start</strong> and never cleans up. 15 MB per rocksdb copy; 456 MB per node after a day of restarts. It is a <strong>per-restart</strong> leak, not per-block. The tmpfs is the fix.</li>
+<li><strong>Logging is fixed at container CREATION.</strong> <code>docker compose start</code> does not apply a changed <code>logging:</code> block — you must recreate. Verify with <code>docker inspect -f '{{.HostConfig.LogConfig.Config}}'</code>; <code>map[]</code> means no cap.</li>
+<li><strong><code>.dockerignore</code> is security-critical.</strong> The build context is the repo ROOT, so without it <code>blockchain/nodes/</code> (validator private keys) and <code>.env</code> are sent into the context and can land in an image layer. Layers survive later deletion and images get pushed.</li>
+</ol>
+<h3 id="claude-services">Services</h3>
+<ol start="13">
+<li><strong><code>.env</code> is optional; <code>process.env</code> wins.</strong> The indexer and API originally <em>required</em> the file and crash-looped with <code>ENOENT: /app/.env</code> in containers.</li>
+<li><strong>The API needs the CHAIN, not just the database.</strong> It reads live balances and code from the node because a cached balance is a wrong balance. Missing <code>RPC_URL</code> kills it at import with "No URL was provided to the Transport."</li>
+<li><strong><code>API_BASE</code> resolves per-runtime.</strong> <code>NEXT_PUBLIC_*</code> is inlined into <em>both</em> bundles, so a single <code>NEXT_PUBLIC_API_BASE ?? API_BASE</code> makes the server use the browser's address. Server uses the private address, browser the public.</li>
+<li><strong>The rate limiter trips test suites run back-to-back</strong>, and the suites crash on 429 instead of reporting it. Space runs ~60s apart or you will chase phantom regressions. This bit us twice.</li>
+</ol>
+<hr class="rule">
+<h2 id="claude-5-conventions">5. Conventions</h2>
+<ul>
+<li><strong>Node 24 native TypeScript type-stripping.</strong> No build step for the indexer or API — <code>node indexer/src/index.ts</code> runs the source. No tsc, no bundler.</li>
+<li><strong>Keyset pagination only.</strong> No <code>OFFSET</code>, no <code>count(*)</code> on request paths — totals come from indexer-maintained counters. Cursors are tagged (<code>blk.1243</code>).</li>
+<li><strong>BYTEA</strong> for hashes and addresses; <strong>NUMERIC(78,0)</strong> for uint256, always returned as <strong>strings</strong> (they exceed 2^53).</li>
+<li><strong>Migrations are idempotent</strong> (<code>IF NOT EXISTS</code> / <code>CREATE OR REPLACE</code>) so re-running is always safe. Verified by running them twice.</li>
+<li><strong>The indexer writes block rows and its checkpoint in ONE transaction</strong>, so a <code>kill -9</code> at any instant resumes correctly. <code>ON CONFLICT DO NOTHING</code> everywhere, which keeps counters correct when a range is re-indexed.</li>
+<li>Explorer UI is Next.js 15 App Router, server components, Tailwind 4.</li>
+</ul>
+<hr class="rule">
+<h2 id="claude-6-commands">6. Commands</h2>
+<pre class="code" data-lang="bash"><code>npm run stack          # EVERYTHING: chain + indexer + API + UI (containers)
+npm run stack:down     # stop it
+docker compose up -d   # chain only (explorer services are behind a profile)
+npm run verify         # network acceptance test
+npm run test:all       # full sweep
+npm run monitor        # health: exit 0 ok / 1 warn / 2 critical
+npm run backup         # config + genesis + schema (NOT keys, NOT chain data)
+npm run contracts:test # Foundry, needs the 622 MB image</code></pre>
+<p>Run the explorer <strong>either</strong> in containers <strong>or</strong> on the host, never both — they bind the same ports (3000, 4100).</p>
+<hr class="rule">
+<h2 id="claude-7-verified-state">7. Verified state</h2>
+<p>Every number measured, not estimated.</p>
+<div class="table-wrap"><table><thead><tr><th>Suite</th><th>Result</th></tr></thead><tbody><tr><td>Network acceptance</td><td>7/7</td></tr><tr><td>Contracts (Foundry)</td><td>28/28 + 12/12 on-chain</td></tr><tr><td>Indexer (over 1000 blocks, SIGKILL-tested)</td><td>8/8</td></tr><tr><td>Explorer API</td><td>51/51</td></tr><tr><td>API regressions</td><td>12/12</td></tr><tr><td>Explorer UI</td><td>28/28</td></tr><tr><td>Wallet compatibility</td><td>19/19</td></tr><tr><td>QBFT transitions</td><td>11/11</td></tr></tbody></table></div>
+<p><strong>Resource use per validator</strong> (<code>--profile=ENTERPRISE</code>):</p>
+<div class="table-wrap"><table><thead><tr><th></th><th>Idle</th><th>Under 10 tx/s</th></tr></thead><tbody><tr><td>RAM</td><td>284–359 MB</td><td>314–359 MB (barely moves)</td></tr><tr><td>CPU</td><td>2–4% of a core</td><td>20–57% of a core</td></tr></tbody></table></div>
+<p>RAM is not the constraint; CPU under sustained load is.</p>
+<p><strong>Disk</strong>: 3,889 bytes/transaction · 43 KB/block at ~11 tx · 9 MB/day logs (load-independent — Besu's logging is periodic, not per-block). Idle ≈ 4 GB/yr; 1 tx/s sustained ≈ 123 GB/yr. Disk is driven by <strong>use</strong>, not uptime.</p>
+<p><strong>Quorum loss, induced for real</strong>: stopping 2 of 4 validators produced 0 blocks in 50s under load. Every container stayed <em>healthy</em> throughout — a process check sees nothing wrong. A ~3 minute outage cost ~<strong>7 minutes</strong> of downtime, because after quorum returned the validators sat in round-change deadlock (split across rounds 4/5/6) for ~4 more minutes. <strong>Round-change backoff is exponential, so recovery time grows with outage length.</strong></p>
+<hr class="rule">
+<h2 id="claude-8-deployed-on-the-devnet">8. Deployed on the devnet</h2>
+<hr class="rule">
+<h2 id="claude-9-open-decisions-do-not-inherit-these-by-accident">9. Open decisions — do not inherit these by accident</h2>
+<ol>
+<li><strong>The fee market.</strong> <code>fixedBaseFee</code> fixed a real bug but does so by <em>removing the fee market</em>: the base fee no longer responds to demand. On a congested mainnet there is no price signal and the mempool backs up until Besu drops transactions at its 4096 default. Either keep it and raise txpool limits, or restore EIP-1559 with a <code>min-gas-price</code> low enough that a decayed base fee still clears it.</li>
+<li><strong>Validator count and hosting.</strong> 7 for mainnet, not 4 — seven tolerates two failures, four tolerates one, and five buys nothing (efficient sizes are <code>n = 3f+1</code>). On <strong>separate hosts, providers and regions</strong>.</li>
+<li><strong>A real key ceremony</strong>, on the validator hosts themselves. A key generated on a shared machine is not a production key.</li>
+</ol>
+<hr class="rule">
+<h2 id="claude-10-what-does-not-exist">10. What does not exist</h2>
+<ul>
+<li><strong>Any application.</strong> Nothing uses this chain.</li>
+<li><strong>Independent validators.</strong> All four run on one desktop. "Tolerates 1 faulty validator" is true of the algorithm and operationally meaningless here. Moving to four VPSes owned by the same person changes uptime, not decentralisation.</li>
+<li><strong>A provisioned deployment.</strong> <code>deploy/</code> encodes topology and security posture. It has never been run against a real host.</li>
+<li><strong>Bridges, cross-chain, rollups, ZK, staking, governance, DEX, NFT marketplace, wallet app, mobile app.</strong> All explicit non-goals for the MVP.</li>
+</ul>
+<hr class="rule">
+<h2 id="claude-11-regulatory-note-philippines">11. Regulatory note (Philippines)</h2>
+<p>Not legal advice, but it shapes what is safe to build. Writing and running this software is unregulated. <strong>Selling, offering or distributing tokens</strong> is not: SEC MC No. 4 &amp; 5, s. 2025 require CASP registration (₱100M paid-up capital), and BSP's moratorium on new VASP licences — in place since 1 Sep 2022 — was extended <strong>indefinitely</strong> from 1 Sep 2025.</p>
+<p>Practical consequence: keep it a <strong>testnet with explicitly valueless tokens</strong>, say so in the README, and ship the software rather than a token. Also note the Data Privacy Act (RA 10173) right to erasure is incompatible with on-chain immutability — store hashes and pointers, never personal data.</p>
+<hr class="rule">
+<h2 id="claude-12-working-style-that-fits-this-repo">12. Working style that fits this repo</h2>
+<ul>
+<li><strong>Measure, don't assume.</strong> Nearly every number in these docs replaced a guess that was wrong — including an 8 GB RAM spec that was ~8× oversized, and a "Docker writes the chain to C:" diagnosis that was simply false.</li>
+<li><strong>Test the failure case, not just the happy path.</strong> The staleness banner, the backup verifier and the quorum monitor were all only trustworthy after being made to fire against a real induced failure.</li>
+<li><strong>A monitor that cries wolf gets ignored.</strong> The rounds check was correlated with liveness precisely because it fired CRITICAL on a healthy chain.</li>
+<li><strong>Commit messages carry the reasoning.</strong> They are the design record here; <code>git log</code> is worth reading before changing anything load-bearing.</li>
+</ul>
+      </section>
+  </main>
+
+  <footer class="footer">
+    Generated from HANDOVER.md, DEPLOY.md and CLAUDE.md by
+    <code>scripts/build-docs.mjs</code> on 2026-09-07. Edit the Markdown and re-run
+    the script; do not edit this file directly.
+  </footer>
+
+</div>
+
+<script>
+// Theme toggle. The page already renders correctly with JavaScript disabled —
+// this only lets a reader override their system setting.
+(function () {
+  var root = document.documentElement;
+  var btn = document.getElementById("theme");
+  if (!btn) return;
+  btn.addEventListener("click", function () {
+    var current = root.getAttribute("data-theme");
+    if (!current) {
+      var dark = window.matchMedia("(prefers-color-scheme: dark)").matches;
+      current = dark ? "dark" : "light";
+    }
+    root.setAttribute("data-theme", current === "dark" ? "light" : "dark");
+  });
+})();
+</script>
+</body>
+</html>
