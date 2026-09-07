@@ -1,0 +1,194 @@
+# Giggora devnet — 4 QBFT validators + 1 public RPC node.
+#
+# Security model (brief §30):
+#   - Validators hold the signing keys and are NEVER publicly reachable.
+#     Their RPC ports bind to 127.0.0.1 for local debugging only.
+#   - The RPC node holds no validator key. It is the only node meant to be
+#     exposed, and the ADMIN / DEBUG / MINER namespaces are off.
+#
+# Two things here are load-bearing and must not be "simplified" away:
+#
+#   1. Static IPs. Besu rejects an enode URL whose host is a DNS name
+#      ("Invalid ip address"), so the bootnode needs a fixed address.
+#
+#   2. --p2p-host=<own static IP> together with --nat-method=NONE.
+#      Left to its own devices, Besu's Docker NAT manager advertises
+#      enode://...@0.0.0.0:30303, peers cannot dial back, and the bootnode
+#      ends up isolated with 0 peers while the chain stalls.
+#
+# Commands are written out per service rather than shared via a YAML anchor,
+# because each node must advertise its own distinct address.
+#
+# Generated config comes from .env — run scripts/create-genesis.sh first.
+
+name: ${COMPOSE_PROJECT_NAME:-giggora}
+
+x-besu-base: &besu-base
+  image: ${BESU_IMAGE}
+  restart: unless-stopped
+  stop_grace_period: 30s
+
+services:
+  # validator-1 is the bootnode: no --bootnodes flag (self-reference is rejected).
+  validator-1:
+    <<: *besu-base
+    container_name: giggora-validator-1
+    hostname: giggora-validator-1
+    volumes:
+      - ./blockchain/genesis/genesis.json:/config/genesis.json:ro
+      - ./blockchain/nodes/validator-1:/data
+    networks:
+      giggora:
+        ipv4_address: ${VALIDATOR_1_IP}
+    ports:
+      - "127.0.0.1:8551:8545"
+    command: >
+      --genesis-file=/config/genesis.json
+      --data-path=/data
+      --node-private-key-file=/data/key
+      --nat-method=NONE
+      --p2p-host=${VALIDATOR_1_IP}
+      --p2p-port=${P2P_PORT}
+      --min-gas-price=${MIN_GAS_PRICE}
+      --rpc-http-enabled
+      --rpc-http-host=0.0.0.0
+      --rpc-http-port=8545
+      --rpc-http-api=ETH,NET,WEB3,QBFT
+      --host-allowlist=*
+      --rpc-http-cors-origins=all
+      --profile=ENTERPRISE
+      --logging=INFO
+
+  validator-2:
+    <<: *besu-base
+    container_name: giggora-validator-2
+    hostname: giggora-validator-2
+    volumes:
+      - ./blockchain/genesis/genesis.json:/config/genesis.json:ro
+      - ./blockchain/nodes/validator-2:/data
+    networks:
+      giggora:
+        ipv4_address: ${VALIDATOR_2_IP}
+    ports:
+      - "127.0.0.1:8552:8545"
+    command: >
+      --genesis-file=/config/genesis.json
+      --data-path=/data
+      --node-private-key-file=/data/key
+      --nat-method=NONE
+      --p2p-host=${VALIDATOR_2_IP}
+      --p2p-port=${P2P_PORT}
+      --bootnodes=${BOOTNODE_ENODE}
+      --min-gas-price=${MIN_GAS_PRICE}
+      --rpc-http-enabled
+      --rpc-http-host=0.0.0.0
+      --rpc-http-port=8545
+      --rpc-http-api=ETH,NET,WEB3,QBFT
+      --host-allowlist=*
+      --rpc-http-cors-origins=all
+      --profile=ENTERPRISE
+      --logging=INFO
+
+  validator-3:
+    <<: *besu-base
+    container_name: giggora-validator-3
+    hostname: giggora-validator-3
+    volumes:
+      - ./blockchain/genesis/genesis.json:/config/genesis.json:ro
+      - ./blockchain/nodes/validator-3:/data
+    networks:
+      giggora:
+        ipv4_address: ${VALIDATOR_3_IP}
+    ports:
+      - "127.0.0.1:8553:8545"
+    command: >
+      --genesis-file=/config/genesis.json
+      --data-path=/data
+      --node-private-key-file=/data/key
+      --nat-method=NONE
+      --p2p-host=${VALIDATOR_3_IP}
+      --p2p-port=${P2P_PORT}
+      --bootnodes=${BOOTNODE_ENODE}
+      --min-gas-price=${MIN_GAS_PRICE}
+      --rpc-http-enabled
+      --rpc-http-host=0.0.0.0
+      --rpc-http-port=8545
+      --rpc-http-api=ETH,NET,WEB3,QBFT
+      --host-allowlist=*
+      --rpc-http-cors-origins=all
+      --profile=ENTERPRISE
+      --logging=INFO
+
+  validator-4:
+    <<: *besu-base
+    container_name: giggora-validator-4
+    hostname: giggora-validator-4
+    volumes:
+      - ./blockchain/genesis/genesis.json:/config/genesis.json:ro
+      - ./blockchain/nodes/validator-4:/data
+    networks:
+      giggora:
+        ipv4_address: ${VALIDATOR_4_IP}
+    ports:
+      - "127.0.0.1:8554:8545"
+    command: >
+      --genesis-file=/config/genesis.json
+      --data-path=/data
+      --node-private-key-file=/data/key
+      --nat-method=NONE
+      --p2p-host=${VALIDATOR_4_IP}
+      --p2p-port=${P2P_PORT}
+      --bootnodes=${BOOTNODE_ENODE}
+      --min-gas-price=${MIN_GAS_PRICE}
+      --rpc-http-enabled
+      --rpc-http-host=0.0.0.0
+      --rpc-http-port=8545
+      --rpc-http-api=ETH,NET,WEB3,QBFT
+      --host-allowlist=*
+      --rpc-http-cors-origins=all
+      --profile=ENTERPRISE
+      --logging=INFO
+
+  # Public-facing node. No validator key -> structurally cannot propose blocks.
+  # Serves JSON-RPC + WebSocket to MetaMask, DApps, and the indexer.
+  rpc:
+    <<: *besu-base
+    container_name: giggora-rpc
+    hostname: giggora-rpc
+    depends_on: [validator-1]
+    volumes:
+      - ./blockchain/genesis/genesis.json:/config/genesis.json:ro
+      - ./blockchain/nodes/rpc:/data
+    networks:
+      giggora:
+        ipv4_address: ${RPC_IP}
+    ports:
+      - "${RPC_HTTP_PORT}:8545"
+      - "${RPC_WS_PORT}:8546"
+    command: >
+      --genesis-file=/config/genesis.json
+      --data-path=/data
+      --nat-method=NONE
+      --p2p-host=${RPC_IP}
+      --p2p-port=${P2P_PORT}
+      --bootnodes=${BOOTNODE_ENODE}
+      --min-gas-price=${MIN_GAS_PRICE}
+      --rpc-http-enabled
+      --rpc-http-host=0.0.0.0
+      --rpc-http-port=8545
+      --rpc-http-api=ETH,NET,WEB3,QBFT
+      --rpc-ws-enabled
+      --rpc-ws-host=0.0.0.0
+      --rpc-ws-port=8546
+      --rpc-ws-api=ETH,NET,WEB3
+      --host-allowlist=*
+      --rpc-http-cors-origins=all
+      --profile=ENTERPRISE
+      --logging=INFO
+
+networks:
+  giggora:
+    name: giggora
+    ipam:
+      config:
+        - subnet: ${DOCKER_SUBNET}

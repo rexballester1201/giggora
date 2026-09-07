@@ -1,0 +1,23 @@
+{
+  "name": "giggora",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Giggora — an independent, EVM-compatible Layer-1 blockchain and block explorer.",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "genesis": "bash scripts/create-genesis.sh",
+    "start": "bash scripts/start-network.sh",
+    "stop": "docker compose down",
+    "restart": "docker compose down && bash scripts/start-network.sh",
+    "logs": "docker compose logs -f",
+    "verify": "node scripts/verify-network.mjs",
+    "clean": "docker compose down -v && rm -rf blockchain/nodes blockchain/genesis/networkFiles blockchain/genesis/genesis.json",
+    "config": "node scripts/gen-config.mjs"
+  },
+  "devDependencies": {
+    "viem": "2.56.3"
+  }
+}

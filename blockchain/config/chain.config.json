@@ -1,0 +1,122 @@
+{
+  "_README": "Giggora — SINGLE SOURCE OF TRUTH. Every other config file is GENERATED from this one by scripts/gen-config.mjs. Never hand-edit genesis/qbftConfigFile.json or .env; edit this file and re-run `bash scripts/create-genesis.sh`. See docs/configuration.md.",
+  "_WHY_JSON_NOT_YAML": "The brief suggested chain.yaml. JSON is used instead so the generator needs zero npm dependencies and can run before any install step — a YAML parser would mean `npm install` must succeed before the chain can boot. Field documentation lives in docs/configuration.md.",
+  "chain": {
+    "name": "Giggora",
+    "currency": {
+      "name": "Giggora",
+      "symbol": "GIG",
+      "decimals": 18
+    }
+  },
+  "activeNetwork": "devnet",
+  "networks": {
+    "devnet": {
+      "chainId": 4043,
+      "networkId": 4043,
+      "description": "Local docker-compose network. Uses PUBLICLY KNOWN keys. Never carries value.",
+      "public": false
+    },
+    "testnet": {
+      "chainId": 4042,
+      "networkId": 4042,
+      "description": "Public testnet. Phase 8. Requires a real key ceremony.",
+      "public": true
+    },
+    "mainnet": {
+      "chainId": 4041,
+      "networkId": 4041,
+      "description": "RESERVED. Not launched. Requires legal review and independent validators.",
+      "public": true
+    }
+  },
+  "consensus": {
+    "algorithm": "qbft",
+    "validatorCount": 4,
+    "_validatorCountNote": "QBFT is n = 3f + 1. 4 validators tolerate 1 faulty node. 3 would tolerate 0.",
+    "blockPeriodSeconds": 2,
+    "emptyBlockPeriodSeconds": 60,
+    "epochLength": 30000,
+    "requestTimeoutSeconds": 4,
+    "blockReward": "0",
+    "_blockRewardNote": "Wei per block. 0 = pre-mine only. Raise later via the `transitions` genesis section, no hard fork needed."
+  },
+  "genesis": {
+    "gasLimit": 30000000,
+    "baseFeePerGas": "1000000000",
+    "fixedBaseFee": true,
+    "_fixedBaseFeeNote": "REQUIRED, and load-bearing. Without it the EIP-1559 base fee decays ~12.5% per empty block. On an idle chain it falls below min-gas-price (1 gwei), and since eth_maxPriorityFeePerGas returns 0 here, wallets estimate a maxFeePerGas UNDER the node's floor. Transactions are then accepted into the pool and silently never mined — MetaMask just hangs. fixedBaseFee pins the base fee at baseFeePerGas forever, so base fee == min gas price and estimation always clears the floor. Preferred over zeroBaseFee, which would make gas free and the chain trivially spammable.",
+    "hardfork": "shanghai",
+    "_hardforkNote": "Shanghai, NOT Cancun. Shanghai gives PUSH0, which Solidity >=0.8.20 emits by default. Cancun (cancunTime) triggers EIP-4788 beacon-root system calls that do not exist on a non-PoS QBFT chain and produce 'Invalid system call address' errors every block (besu issue #9379). Contracts MUST be compiled with evm_version = 'shanghai'."
+  },
+  "gas": {
+    "minGasPriceWei": "1000000000",
+    "_minGasPriceNote": "1 gwei. Deliberately NOT zero — a zero-gas chain is trivially spammable."
+  },
+  "supply": {
+    "total": "1000000000",
+    "_totalNote": "1,000,000,000 GIG. The generator asserts the allocations below sum to exactly this.",
+    "allocations": [
+      {
+        "role": "treasury",
+        "share": "40%",
+        "gig": "400000000",
+        "address": "0xfe3b557e8fb62b89f4916b721be55ceb828dbd73",
+        "_key": "DEVNET ONLY — publicly known Besu test account."
+      },
+      {
+        "role": "ecosystem",
+        "share": "30%",
+        "gig": "300000000",
+        "address": "0x627306090abaB3A6e1400e9345bC60c78a8BEf57",
+        "_key": "DEVNET ONLY — publicly known Besu test account."
+      },
+      {
+        "role": "team",
+        "share": "20%",
+        "gig": "200000000",
+        "address": "0xf17f52151EbEF6C7334FAD080c5704D77216b732",
+        "_key": "DEVNET ONLY — publicly known Besu test account."
+      },
+      {
+        "role": "dev-faucet-0",
+        "share": "5%",
+        "gig": "50000000",
+        "address": "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
+        "_key": "DEVNET ONLY — Anvil/Hardhat account #0. Every Foundry user already has this key."
+      },
+      {
+        "role": "dev-faucet-1",
+        "share": "2.5%",
+        "gig": "25000000",
+        "address": "0x70997970C51812dc3A010C7d01b50e0d17dc79C8",
+        "_key": "DEVNET ONLY — Anvil/Hardhat account #1."
+      },
+      {
+        "role": "dev-faucet-2",
+        "share": "2.5%",
+        "gig": "25000000",
+        "address": "0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC",
+        "_key": "DEVNET ONLY — Anvil/Hardhat account #2."
+      }
+    ]
+  },
+  "ports": {
+    "rpcHttp": 8545,
+    "rpcWs": 8546,
+    "p2p": 30303,
+    "validatorDebugRpcBase": 8551,
+    "_validatorDebugNote": "Validator RPC ports are bound to 127.0.0.1 only, for devnet debugging. In production validators expose nothing."
+  },
+  "docker": {
+    "besuImage": "hyperledger/besu:26.8.1",
+    "_besuImageNote": "Pinned. Verified on Docker Hub 2026-09-07. Do not use :latest — consensus config must be reproducible.",
+    "network": {
+      "subnet": "172.28.0.0/16",
+      "validatorIpPrefix": "172.28.0.",
+      "validatorIpStart": 11,
+      "rpcIp": "172.28.0.20",
+      "_note": "Static IPs are REQUIRED, not cosmetic. Besu rejects an enode URL whose host is a DNS name ('Invalid ip address'), so the bootnode must be reachable at a fixed IP. validator-N = validatorIpPrefix + (validatorIpStart + N - 1)."
+    }
+  }
+}
