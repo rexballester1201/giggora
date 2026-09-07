@@ -42,15 +42,30 @@ export async function build() {
     trustProxy: process.env.TRUSTED_PROXY_CIDR || false,
     requestTimeout: 20_000,
     keepAliveTimeout: 15_000,
+
+    // Any param we accept is at most 66 characters (a 0x hash). The default of
+    // 100 meant a 101-character param was rejected by the ROUTER with a 414 and
+    // Fastify's own error shape, instead of reaching validate.ts and getting a
+    // clean 400 with a useful message.
+    maxParamLength: 128,
+
+    // Router-level failures (invalid percent-escapes, over-length params) are
+    // answered BEFORE the request lifecycle starts, so they never reach
+    // setErrorHandler. Left to Fastify's defaults they returned the internal
+    // FST_ERR_* code, a non-standard envelope, and — worst — the attacker's raw
+    // request line echoed back verbatim, up to ~4KB of reflected input.
+    frameworkErrors: (_err, _req, reply) => {
+      return reply.status(400).send({ error: "bad_request", message: "Invalid request" });
+    },
   });
 
-  await app.register(cors, { origin: true, methods: ["GET"] });
-
-  // Brief §24: "Rate-limit public users." Applied globally rather than per
-  // route so a newly added route cannot accidentally be unprotected.
   // Brief §24: "Rate-limit public users."
   //
-  // NOTE: deliberately NO errorResponseBuilder here. When one is supplied,
+  // Registered BEFORE cors deliberately: @fastify/cors installs an onRequest
+  // hook that short-circuits OPTIONS preflight, so with cors first a client
+  // could send unlimited preflight requests that the limiter never counted.
+  //
+  // NOTE: deliberately NO errorResponseBuilder. When one is supplied,
   // @fastify/rate-limit throws the returned plain OBJECT as the error — it
   // arrives at setErrorHandler with constructor Object, no statusCode, no code,
   // and reply.statusCode still 200. There is then no way to recognise it as a
@@ -65,6 +80,8 @@ export async function build() {
     // Keyed by IP. An API-key tier (§24) would slot in here.
     keyGenerator: (req) => req.ip,
   });
+
+  await app.register(cors, { origin: true, methods: ["GET"] });
 
   // -------------------------------------------------------------------------
   // Error handling.
@@ -109,9 +126,16 @@ export async function build() {
     return reply.status(500).send({ error: "internal_error", message: "Internal server error" });
   });
 
-  app.setNotFoundHandler((_req, reply) => {
-    reply.status(404).send({ error: "not_found", message: "No such endpoint" });
-  });
+  // The limiter is an onRequest hook on MATCHED routes only, so unrouted
+  // requests bypassed it completely: 10 requests to /nope cost zero budget while
+  // still driving HTTP parsing, socket and log work. Attaching app.rateLimit()
+  // as a preHandler closes that gap.
+  app.setNotFoundHandler(
+    { preHandler: app.rateLimit() },
+    (_req, reply) => {
+      reply.status(404).send({ error: "not_found", message: "No such endpoint" });
+    }
+  );
 
   // Health check (brief §28, §31). Reports database reachability, since an API
   // that answers 200 while its database is down is worse than one that fails.

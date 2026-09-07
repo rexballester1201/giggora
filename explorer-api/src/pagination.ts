@@ -32,6 +32,31 @@ export const MAX_BIGINT = "9223372036854775807";
 /** Sentinel for an ASCENDING tiebreaker compared with ">". -1 is vacuously true. */
 export const MIN_TIEBREAK = -1;
 
+/**
+ * Every 20-byte address is <= 0xff..ff, so this is the true maximum of the
+ * address domain and therefore a valid first-page sentinel for a descending
+ * (block, address) row comparison.
+ */
+export const MAX_ADDRESS = "f".repeat(40);
+
+/**
+ * Per-column upper bounds for cursor components.
+ *
+ * These are NOT decoration. A cursor component is bound into a predicate that
+ * compares against a specific column type, and Postgres infers the parameter
+ * type from that comparison. transaction_index, log_index and batch_index are
+ * INTEGER (int4), so a component above 2147483647 raises SQLSTATE 22003
+ * ("value out of range for type integer") deep inside the driver — which is not
+ * a ValidationError and therefore surfaced as a 500.
+ *
+ * Number.isSafeInteger alone accepts up to 9007199254740991, i.e. four million
+ * times the int4 ceiling, so `?cursor=tx.5.2147483648` was an unauthenticated
+ * remote 500 on eight endpoints. Bounding each component to its own column's
+ * domain turns that into a clean 400.
+ */
+export const MAX_INT4 = 2147483647;
+export const MAX_INT8 = 9223372036854775807n;
+
 export interface Cursor {
   tag: string;
   parts: number[];
@@ -59,7 +84,19 @@ export function encodeCursor(tag: string, parts: (number | string)[]): string {
  * against an endpoint whose sort key has a different arity — which would
  * otherwise bind the wrong number of parameters or compare the wrong columns.
  */
-export function decodeCursor(raw: string | null, tag: string, arity: number): number[] | null {
+/**
+ * Decode and strictly validate a numeric cursor.
+ *
+ * `bounds` gives the maximum for each component, in order, matching the domain
+ * of the column it will be compared against. Omitting it defaults every
+ * component to the int8 domain, which is only correct for BIGINT columns.
+ */
+export function decodeCursor(
+  raw: string | null,
+  tag: string,
+  arity: number,
+  bounds?: number[]
+): number[] | null {
   if (raw === null || raw === "") return null;
   if (raw.length > 96) throw new ValidationError("cursor is malformed");
 
@@ -73,9 +110,48 @@ export function decodeCursor(raw: string | null, tag: string, arity: number): nu
     if (!DIGITS.test(b)) throw new ValidationError("cursor is malformed");
     const n = Number(b);
     if (!Number.isSafeInteger(n)) throw new ValidationError("cursor is out of range");
+    // Bound against the TARGET COLUMN's domain, not merely JS safe-integer.
+    const max = bounds?.[i - 1];
+    if (max !== undefined && n > max) throw new ValidationError("cursor is out of range");
     parts.push(n);
   }
   return parts;
+}
+
+/**
+ * Composite (block, address) cursor for feeds ordered by a NON-UNIQUE block
+ * column with an address tiebreaker.
+ *
+ * This exists because the obvious shortcut — store only the block and page with
+ * `block <= lastBlock - 1` — is wrong whenever the sort key is not unique. The
+ * decrement excludes the ENTIRE tie group at that block, not just the rows
+ * already delivered, so every token or contract sharing a first_seen_block with
+ * the last row of a page is skipped and unreachable by any later page. Several
+ * contracts deployed in one block is the normal case, not an edge case.
+ *
+ * It also removes a second bug: with a boundary row at block 0 the decrement
+ * produced "con.-1", a cursor the API's own validator rejects with 400.
+ */
+export function encodeAddrCursor(tag: string, block: number | string, addressHex: string): string {
+  return `${tag}.${block}.${addressHex.replace(/^0x/, "").toLowerCase()}`;
+}
+
+export function decodeAddrCursor(
+  raw: string | null,
+  tag: string
+): { block: number; address: string } | null {
+  if (raw === null || raw === "") return null;
+  if (raw.length > 96) throw new ValidationError("cursor is malformed");
+
+  const bits = raw.split(".");
+  if (bits[0] !== tag) throw new ValidationError("cursor does not belong to this endpoint");
+  if (bits.length !== 3) throw new ValidationError("cursor is malformed");
+  if (!DIGITS.test(bits[1])) throw new ValidationError("cursor is malformed");
+  if (!/^[0-9a-f]{40}$/.test(bits[2])) throw new ValidationError("cursor is malformed");
+
+  const block = Number(bits[1]);
+  if (!Number.isSafeInteger(block)) throw new ValidationError("cursor is out of range");
+  return { block, address: bits[2] };
 }
 
 /**

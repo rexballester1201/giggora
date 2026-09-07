@@ -1,10 +1,10 @@
 # Giggora — Architecture
 
-**Status:** Phase 1 signed off. **Phases 2-5 complete and verified.**
+**Status:** Phase 1 signed off. **Phases 2-6 complete and verified.**
 Phase 2: 7/7 network checks. Phase 3: 28/28 contract unit tests, 12/12 on-chain checks.
 Phase 4: 8/8 indexer checks over 1000 blocks, crash recovery under SIGKILL, Blockscout cross-check.
-Phase 5: 51/51 API contract tests.
-Phase 6 (explorer UI) not started.
+Phase 5: 51/51 API contract tests. Phase 6: 26/26 explorer UI tests.
+Remaining: Phase 7 (wallet/DApp), Phase 8 (deployment).
 **Date:** 2026-09-07
 **Scope:** Implements Phase 1 of the project brief (`Build a Custom EVM Blockchain + Block Explorer.md`).
 
@@ -337,7 +337,7 @@ Each phase has a binary acceptance test. Nothing is marked PASS without a passin
 | **3** | Contracts | **COMPLETE 2026-09-07.** ERC-20/721/1155 deploy via Foundry (28 unit tests pass); deployed to devnet with on-chain log shapes verified; `scripts/deploy-contracts.mjs` reproduces it on demand. |
 | **4** | Blockscout + indexer | **COMPLETE 2026-09-07.** Blockscout indexes the chain and serves its API. Custom indexer verified field-by-field against RPC, and agrees with Blockscout on blocks, hashes, validators, gas and every transaction hash. `kill -9` mid-index survives with zero gaps, zero duplicates, no lost progress; re-indexing is a no-op. |
 | **5** | Explorer API | **COMPLETE 2026-09-07.** All §23 and §24 endpoints, keyset-paginated and validated. 51/51 contract tests: uint256 precision preserved end to end, NULL semantics preserved, no duplicate/skipped rows across pages, injection and malformed input rejected as 400, list query plans index-backed, rate limiting returns 429. |
-| **6** | Explorer UI | All §14 routes; search resolves address/tx/block/token; live updates; responsive to 375px. |
+| **6** | Explorer UI | **COMPLETE 2026-09-07.** All §14 routes render real chain data server-side. Search resolves address/tx/block/token via the API. Homepage blocks and transactions update live without reload. Verified at 375px: document scrollWidth stays 375 while wide tables scroll in-container. Dark/light themes complete. 26/26 UI tests. |
 | **7** | Wallet + DApp | MetaMask add-network works; native and ERC-20 transfers from MetaMask; sample DApp completes a send and confirmation. |
 | **8** | Deployment | Testnet (4042) live on a VPS with TLS, firewall, backups, monitoring. |
 

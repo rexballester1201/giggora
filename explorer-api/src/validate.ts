@@ -24,10 +24,16 @@ const HEX_ADDRESS = /^0x[0-9a-fA-F]{40}$/;
 const HEX_HASH = /^0x[0-9a-fA-F]{64}$/;
 const DIGITS = /^[0-9]+$/;
 // Tagged cursor shape: a lowercase tag, then one or more dot-separated digit
-// groups — e.g. "blk.1243", "tx.900.3", "ttr.900.12.0".
+// groups, optionally ending in a 40-character hex address component —
+// e.g. "blk.1243", "tx.900.3", "ttr.900.12.0", "tok.42.fe3b...bd73".
+//
+// The address component exists because feeds ordered by a NON-UNIQUE block
+// column need the address tiebreaker carried in the cursor; without it, rows
+// sharing a block are silently skipped.
+//
 // The dot is escaped deliberately: an unescaped "." matches any character and
 // would accept "blk_1243" or worse.
-const CURSOR_SHAPE = /^[a-z]{2,5}(?:\.[0-9]{1,20})+$/;
+const CURSOR_SHAPE = /^[a-z]{2,5}(?:\.[0-9]{1,20})+(?:\.[0-9a-f]{40})?$/;
 
 /** Guard against memory/CPU abuse before any pattern matching happens. */
 function assertShortString(v: unknown, field: string, max = 128): string {

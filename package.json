@@ -33,7 +33,14 @@
     "load": "node scripts/load-generator.mjs",
     "api": "node explorer-api/src/server.ts",
     "api:test": "node scripts/test-api.ts",
-    "indexer:tokens": "node indexer/src/index.ts --tokens"
+    "indexer:tokens": "node indexer/src/index.ts --tokens",
+    "web:install": "npm --prefix explorer-web install",
+    "web:build": "npm --prefix explorer-web run build",
+    "web:dev": "npm --prefix explorer-web run dev",
+    "web:start": "npm --prefix explorer-web run start",
+    "web:test": "node scripts/test-explorer-web.mjs",
+    "api:regressions": "node scripts/test-api-regressions.ts",
+    "test:all": "node scripts/verify-network.mjs && node scripts/verify-indexer.ts && node scripts/test-api.ts && node scripts/test-api-regressions.ts && node scripts/test-explorer-web.mjs"
   },
   "dependencies": {
     "@fastify/cors": "^11.3.0",

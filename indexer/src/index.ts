@@ -112,6 +112,8 @@ async function indexBlock(blockNumber: number): Promise<{ txs: number; logs: num
   let insertedTxs = 0;
   let insertedLogs = 0;
   let insertedTransfers = 0;
+  let insertedContracts = 0;
+  let insertedTokens = 0;
   const newTokens = [];
 
   try {
@@ -190,7 +192,19 @@ async function indexBlock(blockNumber: number): Promise<{ txs: number; logs: num
       await touchAddress(client, tx.from, blockNumber, false);
       if (tx.to) await touchAddress(client, tx.to, blockNumber, false);
       if (receipt.contractAddress) {
+        // Check BEFORE upserting whether this address was already flagged as a
+        // contract. An address can already exist as a plain account (someone
+        // funded a precomputed CREATE2 address before deployment), so
+        // "row was inserted" is not the same as "newly became a contract" —
+        // and counting it wrongly would drift total_contracts permanently.
+        // Only runs on contract creations, which are rare.
+        const before = await client.query(
+          `SELECT is_contract FROM addresses WHERE address = $1`,
+          [toBytes(receipt.contractAddress)]
+        );
+        const wasContract = (before.rowCount ?? 0) > 0 && before.rows[0].is_contract === true;
         await touchAddress(client, receipt.contractAddress, blockNumber, true);
+        if (!wasContract) insertedContracts++;
       }
 
       for (const log of receipt.logs) {
@@ -252,6 +266,7 @@ async function indexBlock(blockNumber: number): Promise<{ txs: number; logs: num
              VALUES ($1,$2,$3) ON CONFLICT (address) DO NOTHING`,
             [t.tokenAddress, t.standard, blockNumber]
           );
+          insertedTokens += tokRes.rowCount ?? 0;
           if ((tokRes.rowCount ?? 0) > 0) {
             newTokens.push({ address: t.tokenAddress, standard: t.standard });
           }
@@ -268,16 +283,19 @@ async function indexBlock(blockNumber: number): Promise<{ txs: number; logs: num
     await client.query(
       `INSERT INTO indexer_state (
          id, last_processed_block, chain_id,
-         total_transactions, total_logs, total_token_transfers
+         total_transactions, total_logs, total_token_transfers,
+         total_contracts, total_tokens
        )
-       VALUES (1, $1, $2, $3, $4, $5)
+       VALUES (1, $1, $2, $3, $4, $5, $6, $7)
        ON CONFLICT (id) DO UPDATE
          SET last_processed_block   = EXCLUDED.last_processed_block,
              total_transactions     = indexer_state.total_transactions + EXCLUDED.total_transactions,
              total_logs             = indexer_state.total_logs + EXCLUDED.total_logs,
              total_token_transfers  = indexer_state.total_token_transfers + EXCLUDED.total_token_transfers,
+             total_contracts        = indexer_state.total_contracts + EXCLUDED.total_contracts,
+             total_tokens           = indexer_state.total_tokens + EXCLUDED.total_tokens,
              updated_at = now()`,
-      [blockNumber, CHAIN_ID, insertedTxs, insertedLogs, insertedTransfers]
+      [blockNumber, CHAIN_ID, insertedTxs, insertedLogs, insertedTransfers, insertedContracts, insertedTokens]
     );
 
     await client.query("COMMIT");

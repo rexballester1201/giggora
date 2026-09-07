@@ -504,10 +504,22 @@ await check("Rate limiting returns 429 (not 500)", async () => {
     assert(up, "dedicated rate-limit server did not start");
 
     const codes: number[] = [];
+    let observedLimit: string | null = null;
     for (let i = 0; i < 20; i++) {
       const r = await fetch(`http://localhost:${PORT}/api/stats`);
+      if (i === 0) observedLimit = r.headers.get("x-ratelimit-limit");
       codes.push(r.status);
     }
+
+    // SELF-VALIDATION. A previous run's server that outlived its SIGKILL once
+    // stayed bound to this port, so the test silently measured a DIFFERENT
+    // process — one with the suite's high limit — and reported "rate limiting
+    // is broken" when it was fine. Confirm we are talking to the server we just
+    // configured before drawing any conclusion from the status codes.
+    assert(
+      observedLimit === "5",
+      `x-ratelimit-limit is ${observedLimit}, expected 5 — port ${PORT} is served by a different process`
+    );
 
     const limited = codes.filter((c) => c === 429).length;
     const errored = codes.filter((c) => c === 500).length;

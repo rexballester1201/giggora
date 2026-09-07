@@ -35,11 +35,15 @@ import {
 import {
   MAX_BIGINT,
   MIN_TIEBREAK,
+  MAX_INT4,
+  MAX_ADDRESS,
   encodeCursor,
   decodeCursor,
+  encodeAddrCursor,
+  decodeAddrCursor,
   buildPage,
-  escapeLike,
 } from "./pagination.ts";
+import { hexToBytes } from "./db.ts";
 import { createPublicClient, defineChain, http } from "viem";
 
 const chain = defineChain({
@@ -52,7 +56,24 @@ const chain = defineChain({
   },
   rpcUrls: { default: { http: [env.RPC_URL] } },
 });
-const rpc = createPublicClient({ chain, transport: http(env.RPC_URL) });
+/**
+ * Node client for the two routes that must read live balance state.
+ *
+ * The timeout and retryCount are NOT optional. viem defaults to a 10s timeout
+ * with 3 retries, so a single getBalance against a wedged node (accepting TCP,
+ * never answering — an ordinary degradation during load, restart or snapshot)
+ * is a ~41 SECOND operation. Fastify's requestTimeout does not bound it: that
+ * governs receiving the request, not producing the response. One inbound GET
+ * therefore held a connection for 41s and fanned out to four eth_getBalance
+ * calls, making the public explorer an unauthenticated amplifier pointed at the
+ * node that was already struggling.
+ *
+ * One short attempt, no retries: the route reports balanceError honestly instead.
+ */
+const rpc = createPublicClient({
+  chain,
+  transport: http(env.RPC_URL, { timeout: 1500, retryCount: 0 }),
+});
 
 // ---------------------------------------------------------------------------
 // row mappers — the single place BYTEA becomes hex and NUMERIC stays a string
@@ -85,7 +106,10 @@ function mapTx(r: any) {
     // NULL means contract creation, NOT the zero address.
     to: bytesToHex(r.to_address),
     value: r.value,
-    nonce: Number(r.nonce),
+    // String, not Number. nonce is BIGINT and an EVM nonce is uint64 (EIP-2681),
+    // a domain ~2000x wider than Number.MAX_SAFE_INTEGER. This was the ONLY
+    // large-integer field on the whole read surface emitted as a JSON number.
+    nonce: String(r.nonce),
     gas: r.gas,
     gasUsed: r.gas_used,
     effectiveGasPrice: r.effective_gas_price,
@@ -141,6 +165,79 @@ const TX_LIST_COLS = `
   substring(input from 1 for 4) AS method_id,
   octet_length(input) AS input_size`;
 
+/**
+ * An address's transaction feed.
+ *
+ * THE BRANCHES MUST BE DISJOINT. An earlier version unioned a from-branch and a
+ * to-branch and removed duplicates in JavaScript afterwards. That is subtly
+ * catastrophic: the page fetches limit+1 rows and the extra row is the ONLY
+ * "is there more" signal, so a single self-transfer (from == to) appears in both
+ * branches, consumes that sentinel, and after dedup the array is exactly `limit`
+ * long — buildPage then reports nextCursor: null and the whole remainder of the
+ * address's history becomes unreachable through the API. Self-sends are ordinary
+ * (wallet sweeps, nonce bumps, approve-to-self), so this was a real data-loss
+ * bug hidden only by the test fixture having no self-transfers.
+ *
+ * `IS DISTINCT FROM` (not `<>`) is required because to_address is NULL for
+ * contract creations, and NULL <> $1 is NULL, which would drop those rows.
+ *
+ * The third branch surfaces the contract's OWN creation transaction. That row
+ * has to_address NULL and identifies the contract only through contract_address,
+ * so without this branch the deployment — the one transaction every explorer
+ * shows on a contract page — was invisible there, while the same page reported a
+ * firstSeenBlock several blocks earlier. It uses tx_contract_addr_idx.
+ */
+const ADDRESS_TX_SQL = `(
+     SELECT ${TX_LIST_COLS} FROM transactions
+      WHERE from_address = $1
+        AND block_number <= $2 AND (block_number < $2 OR transaction_index > $3)
+      ORDER BY block_number DESC, transaction_index ASC
+      LIMIT $4
+   )
+   UNION ALL
+   (
+     SELECT ${TX_LIST_COLS} FROM transactions
+      WHERE to_address = $1 AND from_address IS DISTINCT FROM $1
+        AND block_number <= $2 AND (block_number < $2 OR transaction_index > $3)
+      ORDER BY block_number DESC, transaction_index ASC
+      LIMIT $4
+   )
+   UNION ALL
+   (
+     SELECT ${TX_LIST_COLS} FROM transactions
+      WHERE contract_address = $1
+        AND from_address IS DISTINCT FROM $1
+        AND to_address IS DISTINCT FROM $1
+        AND block_number <= $2 AND (block_number < $2 OR transaction_index > $3)
+      ORDER BY block_number DESC, transaction_index ASC
+      LIMIT $4
+   )
+   ORDER BY block_number DESC, transaction_index ASC
+   LIMIT $4`;
+
+/** Same disjointness requirement, for token transfers. */
+const ADDRESS_TT_SQL = `(
+     SELECT tt.*, tk.name, tk.symbol, tk.decimals FROM token_transfers tt
+       LEFT JOIN tokens tk ON tk.address = tt.token_address
+      WHERE tt.from_address = $1
+        AND tt.block_number <= $2
+        AND (tt.block_number < $2 OR (tt.log_index, tt.batch_index) > ($3,$4))
+      ORDER BY tt.block_number DESC, tt.log_index ASC, tt.batch_index ASC
+      LIMIT $5
+   )
+   UNION ALL
+   (
+     SELECT tt.*, tk.name, tk.symbol, tk.decimals FROM token_transfers tt
+       LEFT JOIN tokens tk ON tk.address = tt.token_address
+      WHERE tt.to_address = $1 AND tt.from_address IS DISTINCT FROM $1
+        AND tt.block_number <= $2
+        AND (tt.block_number < $2 OR (tt.log_index, tt.batch_index) > ($3,$4))
+      ORDER BY tt.block_number DESC, tt.log_index ASC, tt.batch_index ASC
+      LIMIT $5
+   )
+   ORDER BY block_number DESC, log_index ASC, batch_index ASC
+   LIMIT $5`;
+
 export async function registerRoutes(app: FastifyInstance) {
   // -------------------------------------------------------------------------
   // §23 GET /api/stats
@@ -149,7 +246,7 @@ export async function registerRoutes(app: FastifyInstance) {
     // Totals come from indexer-maintained counters, never count(*).
     const state = await queryOne(
       `SELECT last_processed_block, chain_id, total_transactions, total_logs,
-              total_token_transfers, updated_at
+              total_token_transfers, total_contracts, total_tokens, updated_at
          FROM indexer_state WHERE id = 1`
     );
     const head = await queryOne(
@@ -168,10 +265,11 @@ export async function registerRoutes(app: FastifyInstance) {
       avgBlockTimeSeconds = (newest - oldest) / 1000 / (recent.length - 1);
     }
 
-    const contracts = await queryOne(
-      `SELECT count(*)::int AS n FROM addresses WHERE is_contract`
-    );
-    const tokens = await queryOne(`SELECT count(*)::int AS n FROM tokens`);
+    // These previously ran count(*) over addresses and tokens on EVERY request —
+    // the exact anti-pattern migration 002 §5 bans, on the one endpoint every
+    // explorer front page hits. Both are now indexer-maintained counters
+    // (migration 003), which also removes two of the five pool round-trips this
+    // handler used to make.
 
     return {
       chainId: Number(env.CHAIN_ID),
@@ -183,8 +281,8 @@ export async function registerRoutes(app: FastifyInstance) {
       totalTransactions: state ? String(state.total_transactions) : "0",
       totalLogs: state ? String(state.total_logs) : "0",
       totalTokenTransfers: state ? String(state.total_token_transfers) : "0",
-      totalContracts: contracts ? contracts.n : 0,
-      totalTokens: tokens ? tokens.n : 0,
+      totalContracts: state ? String(state.total_contracts) : "0",
+      totalTokens: state ? String(state.total_tokens) : "0",
       averageBlockTimeSeconds: avgBlockTimeSeconds,
       gasLimit: head ? head.gas_limit : null,
       baseFeePerGas: head ? head.base_fee_per_gas : null,
@@ -278,7 +376,7 @@ export async function registerRoutes(app: FastifyInstance) {
   app.get("/api/transactions", async (req) => {
     const q = req.query as Record<string, unknown>;
     const { limit, cursor } = parsePage(q);
-    const key = decodeCursor(cursor, "tx", 2);
+    const key = decodeCursor(cursor, "tx", 2, [Number.MAX_SAFE_INTEGER, MAX_INT4]);
     const kb = key ? key[0] : MAX_BIGINT;
     const ki = key ? key[1] : MIN_TIEBREAK;
 
@@ -372,6 +470,11 @@ export async function registerRoutes(app: FastifyInstance) {
       })),
       logsTruncated: logs.length > 200,
       tokenTransfers: transfers.slice(0, 200).map(mapTransfer),
+      // The 201st row is already fetched; without this flag a truncated response
+      // was byte-for-byte indistinguishable from a complete one. One ERC-1155
+      // TransferBatch expands to one row per token id, so a 250-id batch
+      // silently lost 50 movements with nothing indicating the answer was partial.
+      tokenTransfersTruncated: transfers.length > 200,
     };
   });
 
@@ -441,42 +544,13 @@ export async function registerRoutes(app: FastifyInstance) {
     const a = parseAddress(address, "address");
     const bytes = addressToBytes(a);
     const { limit, cursor } = parsePage(req.query as Record<string, unknown>);
-    const key = decodeCursor(cursor, "atx", 2);
+    const key = decodeCursor(cursor, "atx", 2, [Number.MAX_SAFE_INTEGER, MAX_INT4]);
     const kb = key ? key[0] : MAX_BIGINT;
     const ki = key ? key[1] : MIN_TIEBREAK;
 
-    const rows = await query(
-      `(
-         SELECT ${TX_LIST_COLS} FROM transactions
-          WHERE from_address = $1
-            AND block_number <= $2 AND (block_number < $2 OR transaction_index > $3)
-          ORDER BY block_number DESC, transaction_index ASC
-          LIMIT $4
-       )
-       UNION ALL
-       (
-         SELECT ${TX_LIST_COLS} FROM transactions
-          WHERE to_address = $1
-            AND block_number <= $2 AND (block_number < $2 OR transaction_index > $3)
-          ORDER BY block_number DESC, transaction_index ASC
-          LIMIT $4
-       )
-       ORDER BY block_number DESC, transaction_index ASC
-       LIMIT $4`,
-      [bytes, kb, ki, limit + 1]
-    );
+    const rows = await query(ADDRESS_TX_SQL, [bytes, kb, ki, limit + 1]);
 
-    // A self-transfer appears in both branches. Deduplicate in JS over this tiny
-    // set rather than with SQL UNION, which would hash the full wide row.
-    const seen = new Set<string>();
-    const deduped = rows.filter((r: any) => {
-      const k = r.hash.toString("hex");
-      if (seen.has(k)) return false;
-      seen.add(k);
-      return true;
-    });
-
-    const page = buildPage(deduped, limit, (r: any) =>
+    const page = buildPage(rows, limit, (r: any) =>
       encodeCursor("atx", [Number(r.block_number), Number(r.transaction_index)])
     );
     return { items: page.items.map(mapTx), nextCursor: page.nextCursor };
@@ -490,45 +564,14 @@ export async function registerRoutes(app: FastifyInstance) {
     const a = parseAddress(address, "address");
     const bytes = addressToBytes(a);
     const { limit, cursor } = parsePage(req.query as Record<string, unknown>);
-    const key = decodeCursor(cursor, "att", 3);
+    const key = decodeCursor(cursor, "att", 3, [Number.MAX_SAFE_INTEGER, MAX_INT4, MAX_INT4]);
     const kb = key ? key[0] : MAX_BIGINT;
     const kl = key ? key[1] : MIN_TIEBREAK;
     const kx = key ? key[2] : MIN_TIEBREAK;
 
-    const rows = await query(
-      `(
-         SELECT tt.*, tk.name, tk.symbol, tk.decimals FROM token_transfers tt
-           LEFT JOIN tokens tk ON tk.address = tt.token_address
-          WHERE tt.from_address = $1
-            AND tt.block_number <= $2
-            AND (tt.block_number < $2 OR (tt.log_index, tt.batch_index) > ($3,$4))
-          ORDER BY tt.block_number DESC, tt.log_index ASC, tt.batch_index ASC
-          LIMIT $5
-       )
-       UNION ALL
-       (
-         SELECT tt.*, tk.name, tk.symbol, tk.decimals FROM token_transfers tt
-           LEFT JOIN tokens tk ON tk.address = tt.token_address
-          WHERE tt.to_address = $1
-            AND tt.block_number <= $2
-            AND (tt.block_number < $2 OR (tt.log_index, tt.batch_index) > ($3,$4))
-          ORDER BY tt.block_number DESC, tt.log_index ASC, tt.batch_index ASC
-          LIMIT $5
-       )
-       ORDER BY block_number DESC, log_index ASC, batch_index ASC
-       LIMIT $5`,
-      [bytes, kb, kl, kx, limit + 1]
-    );
+    const rows = await query(ADDRESS_TT_SQL, [bytes, kb, kl, kx, limit + 1]);
 
-    const seen = new Set<string>();
-    const deduped = rows.filter((r: any) => {
-      const k = `${r.transaction_hash.toString("hex")}.${r.log_index}.${r.batch_index}`;
-      if (seen.has(k)) return false;
-      seen.add(k);
-      return true;
-    });
-
-    const page = buildPage(deduped, limit, (r: any) =>
+    const page = buildPage(rows, limit, (r: any) =>
       encodeCursor("att", [Number(r.block_number), Number(r.log_index), Number(r.batch_index)])
     );
     return { items: page.items.map(mapTransfer), nextCursor: page.nextCursor };
@@ -537,11 +580,27 @@ export async function registerRoutes(app: FastifyInstance) {
   // -------------------------------------------------------------------------
   // §23 GET /api/tokens
   // -------------------------------------------------------------------------
+  //
+  // Paginated on the FULL composite sort key (first_seen_block, address) via a
+  // row comparison, which Postgres still turns into a single index start
+  // condition on tokens_first_seen_idx.
+  //
+  // The previous single-component cursor stored only first_seen_block and then
+  // decremented it. Because that key is not unique, `first_seen_block <= N-1`
+  // excluded the entire tie group at N, so every token sharing a block with the
+  // last row of a page was skipped and unreachable from any later page — and
+  // several contracts deployed in one block is the normal case. The decrement
+  // also produced "tok.-1" for a genesis-block boundary row, a cursor this API's
+  // own validator answers with 400.
   app.get("/api/tokens", async (req) => {
     const q = req.query as Record<string, unknown>;
     const { limit, cursor } = parsePage(q);
-    const key = decodeCursor(cursor, "tok", 1);
-    const from = key ? key[0] : MAX_BIGINT;
+    const key = decodeAddrCursor(cursor, "tok");
+    const kb = key ? key.block : MAX_BIGINT;
+    const ka = hexToBytes(key ? key.address : MAX_ADDRESS, 20);
+
+    const mkCursor = (r: any) =>
+      encodeAddrCursor("tok", Number(r.first_seen_block), r.address.toString("hex"));
 
     if (q.standard !== undefined) {
       const s = String(q.standard);
@@ -550,21 +609,23 @@ export async function registerRoutes(app: FastifyInstance) {
       }
       const rows = await query(
         `SELECT address, standard, name, symbol, decimals, total_supply, first_seen_block
-           FROM tokens WHERE standard = $1 AND first_seen_block <= $2
-          ORDER BY first_seen_block DESC, address DESC LIMIT $3`,
-        [s, from, limit + 1]
+           FROM tokens
+          WHERE standard = $1 AND (first_seen_block, address) < ($2, $3)
+          ORDER BY first_seen_block DESC, address DESC LIMIT $4`,
+        [s, kb, ka, limit + 1]
       );
-      const page = buildPage(rows, limit, (r: any) => encodeCursor("tok", [Number(r.first_seen_block) - 1]));
+      const page = buildPage(rows, limit, mkCursor);
       return { items: page.items.map(mapToken), nextCursor: page.nextCursor };
     }
 
     const rows = await query(
       `SELECT address, standard, name, symbol, decimals, total_supply, first_seen_block
-         FROM tokens WHERE first_seen_block <= $1
-        ORDER BY first_seen_block DESC, address DESC LIMIT $2`,
-      [from, limit + 1]
+         FROM tokens
+        WHERE (first_seen_block, address) < ($1, $2)
+        ORDER BY first_seen_block DESC, address DESC LIMIT $3`,
+      [kb, ka, limit + 1]
     );
-    const page = buildPage(rows, limit, (r: any) => encodeCursor("tok", [Number(r.first_seen_block) - 1]));
+    const page = buildPage(rows, limit, mkCursor);
     return { items: page.items.map(mapToken), nextCursor: page.nextCursor };
   });
 
@@ -595,7 +656,7 @@ export async function registerRoutes(app: FastifyInstance) {
     const { address } = req.params as { address: string };
     const a = parseAddress(address, "address");
     const { limit, cursor } = parsePage(req.query as Record<string, unknown>);
-    const key = decodeCursor(cursor, "ttr", 3);
+    const key = decodeCursor(cursor, "ttr", 3, [Number.MAX_SAFE_INTEGER, MAX_INT4, MAX_INT4]);
     const kb = key ? key[0] : MAX_BIGINT;
     const kl = key ? key[1] : MIN_TIEBREAK;
     const kx = key ? key[2] : MIN_TIEBREAK;
@@ -621,21 +682,29 @@ export async function registerRoutes(app: FastifyInstance) {
   // -------------------------------------------------------------------------
   app.get("/api/contracts", async (req) => {
     const { limit, cursor } = parsePage(req.query as Record<string, unknown>);
-    const key = decodeCursor(cursor, "con", 1);
-    const from = key ? key[0] : MAX_BIGINT;
+    // Composite cursor, for the same reason as /api/tokens: first_seen_block is
+    // not unique, so a decremented single-component cursor excluded the entire
+    // tie group at the page boundary — every contract deployed in the same block
+    // as the last row became unreachable. Deploy scripts routinely deploy several
+    // contracts in one block, so that was the normal case, not an edge case.
+    const key = decodeAddrCursor(cursor, "con");
+    const kb = key ? key.block : MAX_BIGINT;
+    const ka = hexToBytes(key ? key.address : MAX_ADDRESS, 20);
 
     const rows = await query(
       `SELECT a.address, a.first_seen_block, a.last_seen_block,
               t.standard, t.name, t.symbol
          FROM addresses a
          LEFT JOIN tokens t ON t.address = a.address
-        WHERE a.is_contract AND a.first_seen_block <= $1
+        WHERE a.is_contract AND (a.first_seen_block, a.address) < ($1, $2)
         ORDER BY a.first_seen_block DESC, a.address DESC
-        LIMIT $2`,
-      [from, limit + 1]
+        LIMIT $3`,
+      [kb, ka, limit + 1]
     );
 
-    const page = buildPage(rows, limit, (r: any) => encodeCursor("con", [Number(r.first_seen_block) - 1]));
+    const page = buildPage(rows, limit, (r: any) =>
+      encodeAddrCursor("con", Number(r.first_seen_block), r.address.toString("hex"))
+    );
     return {
       items: page.items.map((r: any) => ({
         address: bytesToHex(r.address),
@@ -714,34 +783,16 @@ export async function registerRoutes(app: FastifyInstance) {
     const q = req.query as Record<string, unknown>;
     const a = parseAddress(q.address, "address");
     const { limit, cursor } = parsePage(q);
-    const key = decodeCursor(cursor, "atx", 2);
+    const key = decodeCursor(cursor, "atx", 2, [Number.MAX_SAFE_INTEGER, MAX_INT4]);
     const kb = key ? key[0] : MAX_BIGINT;
     const ki = key ? key[1] : MIN_TIEBREAK;
 
-    const rows = await query(
-      `(
-         SELECT ${TX_LIST_COLS} FROM transactions
-          WHERE from_address = $1
-            AND block_number <= $2 AND (block_number < $2 OR transaction_index > $3)
-          ORDER BY block_number DESC, transaction_index ASC LIMIT $4
-       ) UNION ALL (
-         SELECT ${TX_LIST_COLS} FROM transactions
-          WHERE to_address = $1
-            AND block_number <= $2 AND (block_number < $2 OR transaction_index > $3)
-          ORDER BY block_number DESC, transaction_index ASC LIMIT $4
-       )
-       ORDER BY block_number DESC, transaction_index ASC LIMIT $4`,
-      [addressToBytes(a), kb, ki, limit + 1]
-    );
+    // Shares ADDRESS_TX_SQL with /api/address/:a/transactions so both get the
+    // disjoint-branch fix; duplicating the query is exactly how one copy keeps
+    // a bug the other has lost.
+    const rows = await query(ADDRESS_TX_SQL, [addressToBytes(a), kb, ki, limit + 1]);
 
-    const seen = new Set<string>();
-    const deduped = rows.filter((r: any) => {
-      const k = r.hash.toString("hex");
-      if (seen.has(k)) return false;
-      seen.add(k);
-      return true;
-    });
-    const page = buildPage(deduped, limit, (r: any) =>
+    const page = buildPage(rows, limit, (r: any) =>
       encodeCursor("atx", [Number(r.block_number), Number(r.transaction_index)])
     );
 
@@ -761,7 +812,7 @@ export async function registerRoutes(app: FastifyInstance) {
   app.get("/api/v1/token/transfers", async (req) => {
     const q = req.query as Record<string, unknown>;
     const { limit, cursor } = parsePage(q);
-    const key = decodeCursor(cursor, "ttr", 3);
+    const key = decodeCursor(cursor, "ttr", 3, [Number.MAX_SAFE_INTEGER, MAX_INT4, MAX_INT4]);
     const kb = key ? key[0] : MAX_BIGINT;
     const kl = key ? key[1] : MIN_TIEBREAK;
     const kx = key ? key[2] : MIN_TIEBREAK;
@@ -770,8 +821,28 @@ export async function registerRoutes(app: FastifyInstance) {
       throw new ValidationError("either contractaddress or address is required");
     }
 
+    // Etherscan's `action=tokentx` treats contractaddress + address together as
+    // "transfers of token X involving account Y" — the most common call shape
+    // for building a wallet's per-token history. An earlier version branched on
+    // contractaddress and never read address in that branch, so the account
+    // filter was silently dropped and callers were handed the token's GLOBAL
+    // feed as if it were the requested account's. A wallet UI would have shown
+    // other people's transfers as the user's own.
     let rows;
-    if (q.contractaddress !== undefined) {
+    if (q.contractaddress !== undefined && q.address !== undefined) {
+      const token = parseAddress(q.contractaddress, "contractaddress");
+      const acct = parseAddress(q.address, "address");
+      rows = await query(
+        `SELECT tt.*, tk.name, tk.symbol, tk.decimals FROM token_transfers tt
+           LEFT JOIN tokens tk ON tk.address = tt.token_address
+          WHERE tt.token_address = $1
+            AND (tt.from_address = $2 OR tt.to_address = $2)
+            AND tt.block_number <= $3
+            AND (tt.block_number < $3 OR (tt.log_index, tt.batch_index) > ($4,$5))
+          ORDER BY tt.block_number DESC, tt.log_index ASC, tt.batch_index ASC LIMIT $6`,
+        [addressToBytes(token), addressToBytes(acct), kb, kl, kx, limit + 1]
+      );
+    } else if (q.contractaddress !== undefined) {
       const a = parseAddress(q.contractaddress, "contractaddress");
       rows = await query(
         `SELECT tt.*, tk.name, tk.symbol, tk.decimals FROM token_transfers tt
@@ -782,34 +853,12 @@ export async function registerRoutes(app: FastifyInstance) {
         [addressToBytes(a), kb, kl, kx, limit + 1]
       );
     } else {
+      // Disjoint branches, shared with /api/address/:a/token-transfers.
       const a = parseAddress(q.address, "address");
-      rows = await query(
-        `(
-           SELECT tt.*, tk.name, tk.symbol, tk.decimals FROM token_transfers tt
-             LEFT JOIN tokens tk ON tk.address = tt.token_address
-            WHERE tt.from_address = $1 AND tt.block_number <= $2
-              AND (tt.block_number < $2 OR (tt.log_index, tt.batch_index) > ($3,$4))
-            ORDER BY tt.block_number DESC, tt.log_index ASC, tt.batch_index ASC LIMIT $5
-         ) UNION ALL (
-           SELECT tt.*, tk.name, tk.symbol, tk.decimals FROM token_transfers tt
-             LEFT JOIN tokens tk ON tk.address = tt.token_address
-            WHERE tt.to_address = $1 AND tt.block_number <= $2
-              AND (tt.block_number < $2 OR (tt.log_index, tt.batch_index) > ($3,$4))
-            ORDER BY tt.block_number DESC, tt.log_index ASC, tt.batch_index ASC LIMIT $5
-         )
-         ORDER BY block_number DESC, log_index ASC, batch_index ASC LIMIT $5`,
-        [addressToBytes(a), kb, kl, kx, limit + 1]
-      );
+      rows = await query(ADDRESS_TT_SQL, [addressToBytes(a), kb, kl, kx, limit + 1]);
     }
 
-    const seen = new Set<string>();
-    const deduped = rows.filter((r: any) => {
-      const k = `${r.transaction_hash.toString("hex")}.${r.log_index}.${r.batch_index}`;
-      if (seen.has(k)) return false;
-      seen.add(k);
-      return true;
-    });
-    const page = buildPage(deduped, limit, (r: any) =>
+    const page = buildPage(rows, limit, (r: any) =>
       encodeCursor("ttr", [Number(r.block_number), Number(r.log_index), Number(r.batch_index)])
     );
     return { status: "1", message: "OK", result: page.items.map(mapTransfer), nextCursor: page.nextCursor };

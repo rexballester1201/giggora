@@ -16,11 +16,12 @@ depending on Ethereum, BSC, or Polygon.
 | Total supply | 1,000,000,000 GIG |
 | Devnet chain ID | 4043 |
 
-> **Status: Phases 1-5 of 8 COMPLETE.** Chain running and verified (7/7 network checks),
+> **Status: Phases 1-6 of 8 COMPLETE.** Chain running and verified (7/7 network checks),
 > ERC-20/721/1155 contracts deployed (28/28 unit tests, 12/12 on-chain checks), indexer
-> crash-tested under SIGKILL and cross-checked against Blockscout across 833 blocks, and
-> the explorer API serving every §23/§24 endpoint (51/51 contract tests).
-> The explorer UI is not yet built.
+> crash-tested under SIGKILL and verified against 1000 blocks, explorer API serving every
+> §23/§24 endpoint (51/51 contract tests), and the explorer UI live with all §14 routes
+> (26/26 UI tests).
+> Remaining: Phase 7 (wallet/DApp) and Phase 8 (deployment).
 > See [docs/architecture.md](docs/architecture.md) for the full plan.
 
 ---
@@ -347,6 +348,47 @@ asserts it.
 The schema holds no balance state, so token holdings and holder counts are not derivable.
 Those fields return `null` with an explicit reason rather than a slow, wrong number
 aggregated from transfer history. Native balance is read from the node.
+
+---
+
+## Explorer UI
+
+```bash
+npm --prefix explorer-web install
+npm --prefix explorer-web run build
+npm --prefix explorer-web run start     # http://localhost:3000
+node scripts/test-explorer-web.mjs      # 26 tests against the running UI
+```
+
+Next.js App Router + Tailwind 4. All §14 routes: `/`, `/blocks`, `/block/[number]`,
+`/transactions`, `/tx/[hash]`, `/address/[address]`, `/tokens`, `/token/[address]`,
+`/contracts`, `/validators`, `/charts`, `/search`.
+
+Point it at a different API with `NEXT_PUBLIC_API_BASE` (browser) and `API_BASE` (server).
+
+### What the UI refuses to invent
+
+The brief asks for holder counts, token holdings and validator uptime. **None of those are
+derivable from the indexed data**, so the UI says so in place of each one rather than
+showing a plausible number. Summing transfer history to guess a balance would be both
+unbounded and wrong — it misses the genesis allocation and gas spend entirely. An explorer
+that displays a confident wrong balance is worse than one that admits the gap.
+
+Validator statistics *are* shown, because §27 explicitly permits deriving them from indexed
+blocks — but from a bounded recent window, never a full-table aggregate behind an anonymous
+page load.
+
+### Precision, in the last mile
+
+Every wei value is formatted with **BigInt arithmetic**, never `Number()`. The whole stack
+has been built to keep uint256 intact; parsing it into a double in the render layer would
+throw that away at the final step. A test asserts the treasury balance renders exactly.
+
+### Responsive (§36)
+
+Verified at 375px: the document's `scrollWidth` stays exactly 375 while wide tables scroll
+inside their own container — the page body never scrolls horizontally. Dark and light
+themes are both complete palettes, applied before first paint so there is no flash.
 
 ---
 

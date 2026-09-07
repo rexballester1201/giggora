@@ -10,7 +10,7 @@
 #
 # ...or use the npm equivalents: npm run genesis / start / stop / verify / clean
 
-.PHONY: help config genesis start stop restart logs status test clean reset setup-contracts contracts contracts-test deploy-contract db-migrate indexer api api-test
+.PHONY: api-regressions help config genesis start stop restart logs status test clean reset setup-contracts contracts contracts-test deploy-contract db-migrate indexer api api-test web-build web web-test
 
 help:
 	@echo ""
@@ -38,6 +38,12 @@ help:
 	@echo "  make indexer          Run the indexer (follows the chain head)"
 	@echo "  make api              Run the explorer API"
 	@echo "  make api-test         Run the API contract tests"
+	@echo "  make api-regressions  Run the API regression tests"
+	@echo ""
+	@echo "  Explorer UI:"
+	@echo "  make web-build        Build the explorer UI"
+	@echo "  make web              Serve the built explorer UI"
+	@echo "  make web-test         Run the explorer UI tests"
 	@echo ""
 
 config:
@@ -97,3 +103,15 @@ api:
 
 api-test:
 	node scripts/test-api.ts
+
+web-build:
+	npm --prefix explorer-web run build
+
+web:
+	npm --prefix explorer-web run start
+
+web-test:
+	node scripts/test-explorer-web.mjs
+
+api-regressions:
+	node scripts/test-api-regressions.ts
