@@ -87,10 +87,28 @@ Three further decisive properties:
 1. **Absolute finality deletes an entire subsystem.** With no reorgs possible, the indexer
    (§22) needs no reorg handling, no rollback, no orphan tracking. That is a large slice of the
    hardest code in the project, removed by a consensus choice.
-2. **`transitions` is a built-in upgrade mechanism.** Block time, block reward, mining
-   beneficiary, and validator-selection method can each be changed at a scheduled future block.
-   The brief listed an upgrade procedure as a deliverable (§50.19) but never designed one — this
-   is it.
+2. **`transitions` is a built-in upgrade mechanism** — with real caveats, established by
+   testing it rather than by reading about it (`scripts/test-qbft-transition.mjs`, 11/11).
+   Block time, block reward, mining beneficiary and validator-selection method can each be
+   changed on a live chain: the genesis hash is unchanged, history is intact, and the chain
+   keeps its identity. The brief listed an upgrade procedure as a deliverable (§50.19) but
+   never designed one — this is it. Three things the documentation did not make clear:
+
+   - **`transitions` must sit INSIDE `config`.** Placed at the top level of the genesis file
+     it is *silently ignored* — Besu starts with no error, no warning, and the scheduled
+     change simply never happens. Measured both ways; top-level had no effect at all.
+   - **The change applies at NODE RESTART, not at the scheduled block.** Verified: a
+     transition scheduled for block 1748 was already in force at block 1731. So an upgrade
+     cannot be staged in advance and left to land on its own — every node must be cycled in
+     one maintenance window, and the `block` field behaves more like a floor than a trigger.
+   - **Stop every node, then start them. Never a rolling restart.** Besu validates each
+     block's timestamp gap against its *own* current block period, so while nodes disagree,
+     proposals are rejected with `TimestampMoreRecentThanParent` and block production stalls
+     until QBFT round-changes. Observed on this chain; it recovered unaided, but a production
+     network should not be asked to.
+
+   This is weaker than "schedule it and forget it", but it is still a genuine no-hard-fork
+   upgrade path, and it is now tested rather than assumed.
 3. **Tokenomics are natively configurable**, satisfying §11 with no custom contracts:
    `blockreward` (Wei per block) and `miningbeneficiary` (defaults to the block proposer).
 
@@ -361,6 +379,7 @@ the data cannot be mocked.
 | Scope overrun | Medium | Phase gating; verification delegated rather than rebuilt. |
 | State growth | Low now | Bounded on a low-traffic chain. Revisit pruning before mainnet. |
 | Token launch legality | **Unassessed** | A genesis allocation and treasury for a native coin is securities-adjacent in many jurisdictions. Needs counsel before mainnet — not before devnet. Flagged, not solved. |
+| Quantum (secp256k1) | Long-dated | See §14. Inherited from EVM compatibility, not caused by any choice here. Not the binding constraint, but it belonged in this table and was missing. |
 
 ---
 
@@ -405,6 +424,73 @@ estimated 4–6 weeks and carry the highest defect risk in the project.
    unlaunched until there is an application and independent validators. **APPROVED.**
 
 Phase 1 is complete. Phase 2 is authorised to begin.
+
+---
+
+## 14. Post-quantum exposure
+
+Not in the original brief, and worth stating plainly because the answer is
+uncomfortable: **Giggora is not quantum-resistant, and cannot be without ceasing
+to be EVM-compatible.** It inherits Ethereum's exposure exactly — no better, no
+worse. That is a consequence of §1, not an oversight.
+
+### What is exposed
+
+| Component | Algorithm | Status under a CRQC |
+|---|---|---|
+| Account signatures | secp256k1 ECDSA | **Broken by Shor's algorithm** |
+| QBFT validator block signing | secp256k1 | **Broken by Shor's algorithm** |
+| keccak256 hashing | keccak256 | Fine. Grover halves it to ~128-bit, still ample |
+| RPC transport (TLS) | see below | Already hybrid-PQ, for free |
+
+Hashing is *not* the problem, despite how often it is lumped in.
+
+One nuance is often overstated: an address is `keccak256(pubkey)[12:]`, so an
+account that has **never spent** keeps its public key behind a hash. That
+protection disappears the moment it sends a transaction. On Giggora the
+load generator alone has sent tens of thousands of transactions from the dev
+accounts, and validators sign *every block* — so in practice every key that
+matters is already exposed. Address hashing buys nothing for active accounts.
+
+### Current state (verified 2026-09-07)
+
+- **Besu has no post-quantum support.** secp256k1 for transactions, elliptic-curve
+  keys for QBFT validator authentication. Nothing PQ anywhere in the client.
+- **Ethereum has a real roadmap.** Vitalik Buterin's February 2026 roadmap plus
+  the Ethereum Foundation's PQ hub (March 2026, 10+ client teams, weekly interop
+  devnets) cover: `leanXMSS` hash-based signatures replacing BLS for validators;
+  `leanVM`, a minimal zkVM aggregating those larger signatures (~250x
+  compression); and **EIP-8141**, account-abstraction *signature agility*, under
+  consideration for the Hegota fork in H2 2026. Initial protocol upgrades are
+  targeted for **2029**.
+
+### Decision: inherit, do not invent
+
+**Giggora must not ship its own post-quantum signature scheme.** Any custom
+algorithm breaks MetaMask and every EVM tool, which destroys the single property
+the chain exists to provide. A "quantum-resistant Giggora" that no wallet can
+talk to is worth less than nothing.
+
+EIP-8141's per-account signature agility is the right shape precisely because it
+is opt-in and preserves compatibility. Being EVM-compatible means Giggora
+inherits it when Besu ships it — an argument *for* the Besu choice, not against.
+
+**This is not the binding constraint.** No CRQC exists, there is no mainnet, no
+value is at risk, and Ethereum's own timeline is 2029. The binding constraint
+remains the one named at the top of §11: no application and no independent
+validators.
+
+### What is actually actionable
+
+| Action | Status |
+|---|---|
+| Hybrid PQ TLS on the RPC endpoint | **Free.** Caddy (Go 1.24+) negotiates `X25519MLKEM768` by default. Phase 8 gets it without work. |
+| Exercise the upgrade mechanism | **Done** — `scripts/test-qbft-transition.mjs`. Any future migration depends on it, and it had never been tested. |
+| Validator key rotation runbook | **Done** — `docs/validator-rotation.md`. Rotation is the one PQ mitigation available to a small permissioned validator set. |
+| Track EIP-8141 / leanXMSS | Ongoing. Watch Besu releases; do nothing bespoke. |
+
+**Do not** describe Giggora as quantum-resistant. It is not, and neither is
+Ethereum.
 
 ---
 

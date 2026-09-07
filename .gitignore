@@ -50,3 +50,7 @@ contracts/broadcast/
 explorer-web/.next/
 explorer-web/out/
 explorer-web/next-env.d.ts
+
+# ---- transition tooling ----
+# Runtime backup written by scripts/schedule-transition.mjs
+blockchain/genesis/genesis.json.before-transition
