@@ -20,7 +20,7 @@ services:
   # entry here, put a bastion or a tunnel in front of it instead.
   # --------------------------------------------------------------------------
   postgres:
-    image: ${POSTGRES_IMAGE:-postgres:17-alpine}
+    image: ${POSTGRES_IMAGE:-postgres:16-alpine}
     container_name: giggora-explorer-db
     restart: unless-stopped
     environment:
@@ -48,7 +48,7 @@ services:
   # indexer can never start against a schema older than its code.
   # --------------------------------------------------------------------------
   migrate:
-    image: ${POSTGRES_IMAGE:-postgres:17-alpine}
+    image: ${POSTGRES_IMAGE:-postgres:16-alpine}
     container_name: giggora-explorer-migrate
     restart: "no"
     depends_on:
@@ -110,16 +110,32 @@ services:
       migrate: { condition: service_completed_successfully }
     environment:
       DATABASE_URL: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      # The API talks to the CHAIN too, not only the database — live balances
+      # and code come from the node, because a cached balance is a wrong one.
+      # These were missing here (the indexer had them, the api did not) and the
+      # container crash-looped at import with "No URL was provided to the
+      # Transport". `:?` makes `docker compose config` fail at deploy time
+      # instead of the container failing at start time.
+      RPC_URL: ${RPC_URL:?RPC_URL is required by the explorer API}
+      CHAIN_ID: ${CHAIN_ID:?CHAIN_ID is required by the explorer API}
+      CHAIN_NAME: ${CHAIN_NAME:-Giggora}
+      CURRENCY_NAME: ${CURRENCY_NAME:-Giggora}
+      CURRENCY_SYMBOL: ${CURRENCY_SYMBOL:-GIG}
+      CURRENCY_DECIMALS: ${CURRENCY_DECIMALS:-18}
       API_HOST: 0.0.0.0
       API_PORT: 4000
       API_POOL_SIZE: ${API_POOL_SIZE:-10}
       RATE_LIMIT_MAX: ${RATE_LIMIT_MAX:-120}
       RATE_LIMIT_WINDOW: ${RATE_LIMIT_WINDOW:-60000}
-      # Caddy's address on this network. Left UNSET behind a proxy, every
-      # request looks like it came from Caddy and the rate limiter degrades into
-      # a single global bucket; set to `true` it trusts a client-supplied header
-      # and the limiter becomes decorative. Neither is what you want.
-      TRUSTED_PROXY_CIDR: ${TRUSTED_PROXY_CIDR}
+      # Caddy's address on this network, as a /32. The `networks:` block at the
+      # bottom PINS the subnet and gives Caddy a fixed address, so this default
+      # is a fact, not a guess. An earlier version guessed 172.18.0.0/16 for an
+      # unpinned default network; when the guess was wrong every client's
+      # requests appeared to come from Caddy and the rate limiter collapsed into
+      # ONE shared bucket that a single attacker could exhaust for everyone.
+      # Left unset it has the same effect; set to `true` it trusts a
+      # client-supplied header and the limiter becomes decorative.
+      TRUSTED_PROXY_CIDR: ${TRUSTED_PROXY_CIDR:-10.230.0.10/32}
       LOG_LEVEL: ${LOG_LEVEL:-info}
     command: ["node", "explorer-api/src/server.ts"]
     logging: *logging
@@ -156,6 +172,11 @@ services:
     container_name: giggora-explorer-caddy
     restart: unless-stopped
     depends_on: [web, api]
+    # Fixed address so the API's TRUSTED_PROXY_CIDR can name exactly this
+    # container and nothing else.
+    networks:
+      default:
+        ipv4_address: 10.230.0.10
     ports:
       - "80:80"
       - "443:443"
@@ -173,3 +194,14 @@ volumes:
   pgdata:
   caddy-data:
   caddy-config:
+
+# The default network with a PINNED subnet. Compose otherwise picks the next
+# free 172.x range at `up` time, which differs per host and per run — so any
+# CIDR written into an env file (TRUSTED_PROXY_CIDR) was a guess that could
+# silently stop matching. 10.230.0.0/24 is chosen to stay clear of the devnet's
+# 172.28.0.0/16 and Docker's own 172.17-31 defaults.
+networks:
+  default:
+    ipam:
+      config:
+        - subnet: 10.230.0.0/24

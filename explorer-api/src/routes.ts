@@ -896,14 +896,39 @@ export async function registerRoutes(app: FastifyInstance) {
     if (q.contractaddress !== undefined && q.address !== undefined) {
       const token = parseAddress(q.contractaddress, "contractaddress");
       const acct = parseAddress(q.address, "address");
+      // Two DISJOINT index-range branches, not `from = $2 OR to = $2`. The OR
+      // form has no covering index (migration 002 indexes from_address and
+      // to_address separately, never together with token_address), so Postgres
+      // scans every transfer of the token and filters — on a busy token that is
+      // an unbounded scan per request, enough to pin the whole pool. Each branch
+      // below is a single bounded range scan on migration 005's indexes.
+      //
+      // `IS DISTINCT FROM` keeps the branches disjoint so a self-transfer cannot
+      // appear twice and consume the limit+1 sentinel (same requirement as
+      // ADDRESS_TT_SQL).
       rows = await query(
-        `SELECT tt.*, tk.name, tk.symbol, tk.decimals FROM token_transfers tt
-           LEFT JOIN tokens tk ON tk.address = tt.token_address
-          WHERE tt.token_address = $1
-            AND (tt.from_address = $2 OR tt.to_address = $2)
-            AND tt.block_number <= $3
-            AND (tt.block_number < $3 OR (tt.log_index, tt.batch_index) > ($4,$5))
-          ORDER BY tt.block_number DESC, tt.log_index ASC, tt.batch_index ASC LIMIT $6`,
+        `(
+           SELECT tt.*, tk.name, tk.symbol, tk.decimals FROM token_transfers tt
+             LEFT JOIN tokens tk ON tk.address = tt.token_address
+            WHERE tt.token_address = $1 AND tt.from_address = $2
+              AND tt.block_number <= $3
+              AND (tt.block_number < $3 OR (tt.log_index, tt.batch_index) > ($4,$5))
+            ORDER BY tt.block_number DESC, tt.log_index ASC, tt.batch_index ASC
+            LIMIT $6
+         )
+         UNION ALL
+         (
+           SELECT tt.*, tk.name, tk.symbol, tk.decimals FROM token_transfers tt
+             LEFT JOIN tokens tk ON tk.address = tt.token_address
+            WHERE tt.token_address = $1 AND tt.to_address = $2
+              AND tt.from_address IS DISTINCT FROM $2
+              AND tt.block_number <= $3
+              AND (tt.block_number < $3 OR (tt.log_index, tt.batch_index) > ($4,$5))
+            ORDER BY tt.block_number DESC, tt.log_index ASC, tt.batch_index ASC
+            LIMIT $6
+         )
+         ORDER BY block_number DESC, log_index ASC, batch_index ASC
+         LIMIT $6`,
         [addressToBytes(token), addressToBytes(acct), kb, kl, kx, limit + 1]
       );
     } else if (q.contractaddress !== undefined) {

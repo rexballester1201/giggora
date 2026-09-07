@@ -27,21 +27,22 @@
 		-Server
 	}
 
-	# Coarse per-IP limit at the edge. The explorer API applies its own finer
-	# limits; this one exists so abuse is dropped before it reaches Besu at all.
-	rate_limit {
-		zone rpc {
-			key {remote_host}
-			events 300
-			window 1m
-		}
-	}
+	# NO edge rate limiter here. An earlier version used `rate_limit { ... }`,
+	# which is the third-party plugin github.com/mholt/caddy-ratelimit, not a
+	# Caddy built-in; the stock caddy:2-alpine image fails to start on it with
+	# "unrecognized directive: rate_limit", taking the public RPC down entirely.
+	# Besu applies its own limits (--rpc-http-max-active-connections, default
+	# 80, and --rpc-http-max-batch-size). If edge limiting is wanted, build a
+	# custom image with xcaddy — never paste the directive back against stock.
 
-	# JSON-RPC. Only POST is meaningful; anything else is rejected outright
-	# rather than forwarded.
+	# JSON-RPC. POST carries the calls; OPTIONS is the browser's CORS preflight
+	# and MUST reach Besu too — Besu answers it from --rpc-http-cors-origins.
+	# Only POST was proxied before, so preflight fell through to the 405 below
+	# with no Access-Control headers and no browser dapp could use this
+	# endpoint at all, regardless of CORS_ORIGINS.
 	@rpc {
 		path /
-		method POST
+		method POST OPTIONS
 	}
 	handle @rpc {
 		reverse_proxy 127.0.0.1:8545 {

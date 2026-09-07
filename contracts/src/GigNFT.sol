@@ -13,7 +13,7 @@ import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 /// @dev Includes ERC721Enumerable deliberately: totalSupply() and
 ///      tokenOfOwnerByIndex() let the explorer list a collection and an
 ///      address's holdings without replaying every historical log (brief §20).
-///      Compiled for the Shanghai EVM — see foundry.toml.
+///      Compiled for the Cancun EVM — see foundry.toml.
 contract GigNFT is ERC721, ERC721Enumerable, ERC721URIStorage, Ownable {
     uint256 private _nextTokenId;
 
@@ -24,10 +24,16 @@ contract GigNFT is ERC721, ERC721Enumerable, ERC721URIStorage, Ownable {
 
     /// @notice Mint the next token in sequence to `to`. Owner only.
     /// @return tokenId The id that was minted.
+    /// @dev URI is set BEFORE _safeMint. _safeMint calls the recipient's
+    ///      onERC721Received, an external call into arbitrary code; ordering
+    ///      the URI write after it meant that during the callback the token
+    ///      existed with an empty tokenURI — an observable, reentrant-window
+    ///      inconsistency. OpenZeppelin v5's _setTokenURI does not require the
+    ///      token to exist, so writing it first is safe and closes the window.
     function safeMint(address to, string memory uri) external onlyOwner returns (uint256) {
         uint256 tokenId = _nextTokenId++;
-        _safeMint(to, tokenId);
         _setTokenURI(tokenId, uri);
+        _safeMint(to, tokenId);
         return tokenId;
     }
 

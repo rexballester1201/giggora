@@ -23,6 +23,7 @@ import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { createPublicClient, createWalletClient, defineChain, http, parseEther } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
+import { assertDevnet } from "./lib/devnet-guard.mjs";
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 
@@ -65,6 +66,8 @@ const giggora = defineChain({
 
 const account = privateKeyToAccount(SENDER_PK);
 const pub = createPublicClient({ chain: giggora, transport: http(env.RPC_URL) });
+// Fires a continuous stream of transactions from a public key. Devnet only.
+await assertDevnet(pub, { what: "load-generator.mjs" });
 const wallet = createWalletClient({ account, chain: giggora, transport: http(env.RPC_URL) });
 
 // Contracts are optional: native transfers alone still generate blocks.

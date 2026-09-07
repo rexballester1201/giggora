@@ -342,7 +342,14 @@ async function runOnce() {
 
 const watch = arg("watch");
 if (watch) {
-  const every = Number(watch) * 1000;
+  // Validated. Number("abc") is NaN and Number("0") is 0; either made
+  // setTimeout fire immediately and this loop hammer the RPC node flat out.
+  const seconds = Number(watch);
+  if (!Number.isInteger(seconds) || seconds < 5) {
+    console.error(`  --watch needs a whole number of seconds, at least 5 (got "${watch}")`);
+    process.exit(1);
+  }
+  const every = seconds * 1000;
   for (;;) {
     await runOnce();
     await new Promise((r) => setTimeout(r, every));

@@ -77,8 +77,11 @@ export async function build() {
   await app.register(rateLimit, {
     max: Number(process.env.RATE_LIMIT_MAX ?? 120),
     timeWindow: process.env.RATE_LIMIT_WINDOW ?? "1 minute",
-    // Keyed by IP. An API-key tier (§24) would slot in here.
-    keyGenerator: (req) => req.ip,
+    // Keyed by IP using the plugin's DEFAULT generator, deliberately. It masks
+    // IPv6 to a /64, which is the unit ISPs hand a single subscriber. An earlier
+    // `keyGenerator: (req) => req.ip` bypassed that, so any IPv6 client could
+    // rotate through its own /64 (2^64 addresses) and never hit the limit. An
+    // API-key tier (§24) would slot in here and must call normalizeIP itself.
   });
 
   await app.register(cors, { origin: true, methods: ["GET"] });

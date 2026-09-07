@@ -150,7 +150,7 @@ radius.
                        Internet
                           │  443 only
                    ┌──────┴──────┐
-                   │    Caddy    │  TLS, rate limit, hybrid PQ key exchange
+                   │    Caddy    │  TLS termination, hybrid PQ key exchange
                    └──────┬──────┘
                           │ 127.0.0.1
                    ┌──────┴──────┐

@@ -37,6 +37,7 @@ import {
   formatEther,
 } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
+import { assertDevnet } from "./lib/devnet-guard.mjs";
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 
@@ -70,6 +71,7 @@ const giggora = defineChain({
 
 const account = privateKeyToAccount(SENDER_PK);
 const pub = createPublicClient({ chain: giggora, transport: http(RPC_URL) });
+await assertDevnet(pub, { what: "test-wallet.mjs" });
 const wallet = createWalletClient({ account, chain: giggora, transport: http(RPC_URL) });
 
 let pass = 0;

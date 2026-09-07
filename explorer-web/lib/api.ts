@@ -171,6 +171,15 @@ export class ApiError extends Error {
   }
 }
 
+/**
+ * Encode a value destined for a URL PATH segment. Route params arrive from
+ * Next's dynamic segments already percent-DECODED, so an address of
+ * "0xabc/../../search" or "0xabc?limit=999" was interpolated raw into the API
+ * URL and altered the request. The API's own validation rejected the result,
+ * but the web tier must not be the thing that lets a URL rewrite a URL.
+ */
+const seg = (v: string | number) => encodeURIComponent(String(v));
+
 async function get<T>(path: string, revalidate = 2): Promise<T> {
   const res = await fetch(`${API_BASE}${path}`, {
     // Short revalidate: the head of the chain moves every couple of seconds.
@@ -194,27 +203,27 @@ export const api = {
   stats: () => get<Stats>("/api/stats", 2),
   blocks: (limit = 25, cursor?: string | null) =>
     get<Page<Block>>(`/api/blocks?limit=${limit}${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ""}`),
-  block: (n: number | string) => get<Block>(`/api/blocks/${n}`, 30),
+  block: (n: number | string) => get<Block>(`/api/blocks/${seg(n)}`, 30),
   transactions: (limit = 25, cursor?: string | null) =>
     get<Page<Transaction>>(
       `/api/transactions?limit=${limit}${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ""}`
     ),
-  transaction: (hash: string) => get<Transaction>(`/api/transactions/${hash}`, 30),
-  address: (a: string) => get<AddressInfo>(`/api/address/${a}`, 5),
+  transaction: (hash: string) => get<Transaction>(`/api/transactions/${seg(hash)}`, 30),
+  address: (a: string) => get<AddressInfo>(`/api/address/${seg(a)}`, 5),
   addressTransactions: (a: string, limit = 25, cursor?: string | null) =>
     get<Page<Transaction>>(
-      `/api/address/${a}/transactions?limit=${limit}${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ""}`
+      `/api/address/${seg(a)}/transactions?limit=${limit}${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ""}`
     ),
   addressTokenTransfers: (a: string, limit = 25, cursor?: string | null) =>
     get<Page<TokenTransfer>>(
-      `/api/address/${a}/token-transfers?limit=${limit}${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ""}`
+      `/api/address/${seg(a)}/token-transfers?limit=${limit}${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ""}`
     ),
   tokens: (limit = 25, cursor?: string | null) =>
     get<Page<Token>>(`/api/tokens?limit=${limit}${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ""}`),
-  token: (a: string) => get<Token>(`/api/token/${a}`, 30),
+  token: (a: string) => get<Token>(`/api/token/${seg(a)}`, 30),
   tokenTransfers: (a: string, limit = 25, cursor?: string | null) =>
     get<Page<TokenTransfer>>(
-      `/api/token/${a}/transfers?limit=${limit}${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ""}`
+      `/api/token/${seg(a)}/transfers?limit=${limit}${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ""}`
     ),
   contracts: (limit = 25, cursor?: string | null) =>
     get<Page<any>>(`/api/contracts?limit=${limit}${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ""}`),

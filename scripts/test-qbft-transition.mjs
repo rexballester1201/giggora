@@ -18,14 +18,18 @@
  * Usage:  node scripts/test-qbft-transition.mjs
  */
 
-import { readFileSync, existsSync, copyFileSync } from "node:fs";
+import { readFileSync, existsSync, copyFileSync, unlinkSync } from "node:fs";
 import { execFileSync, spawn } from "node:child_process";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const GENESIS = join(ROOT, "blockchain", "genesis", "genesis.json");
-const BACKUP = join(ROOT, "blockchain", "genesis", "genesis.json.before-transition");
+// A snapshot THIS run takes, restored by THIS run. The test used to restore
+// from schedule-transition's shared backup file, which (a) no longer exists in
+// that form — backups are now per-target — and (b) could be stale from an
+// earlier, unrelated transition, so "restore" put back the wrong genesis.
+const SNAPSHOT = join(ROOT, "blockchain", "genesis", "genesis.json.transition-test-snapshot");
 
 const env = Object.fromEntries(
   readFileSync(join(ROOT, ".env"), "utf8")
@@ -146,6 +150,16 @@ const hashBefore = await genesisHash();
 console.log(`  genesis ${hashBefore}\n`);
 
 let scheduled = false;
+// Taken before anything is scheduled, so the restore is exact.
+copyFileSync(GENESIS, SNAPSHOT);
+// What "restored" must mean: the transitions that were there BEFORE this test,
+// which may legitimately be non-empty (a transition already in force on the
+// chain). The old assertion demanded `!g.config.transitions`, which only a
+// restore that ERASED an in-force transition — forking the network — could
+// satisfy once one existed.
+const ORIGINAL_TRANSITIONS = JSON.stringify(
+  JSON.parse(readFileSync(GENESIS, "utf8")).config.transitions ?? null
+);
 try {
   // -------------------------------------------------------------------------
   console.log("  1. Baseline block period under load");
@@ -245,14 +259,18 @@ try {
   // -------------------------------------------------------------------------
   console.log("\n  7. Restore the original configuration");
   // -------------------------------------------------------------------------
-  if (scheduled && existsSync(BACKUP)) {
-    copyFileSync(BACKUP, GENESIS);
+  if (scheduled && existsSync(SNAPSHOT)) {
+    copyFileSync(SNAPSHOT, GENESIS);
+    unlinkSync(SNAPSHOT);
     try {
       const up = await cycleAllNodes();
       const g = JSON.parse(readFileSync(GENESIS, "utf8"));
       const restored = await loadedBlockPeriod(40);
       report(
-        up && !g.config.transitions && restored.avg !== null && Math.abs(restored.avg - OLD_PERIOD) < 2,
+        up &&
+          JSON.stringify(g.config.transitions ?? null) === ORIGINAL_TRANSITIONS &&
+          restored.avg !== null &&
+          Math.abs(restored.avg - OLD_PERIOD) < 2,
         "Restored to the original block period",
         restored.avg !== null ? `${restored.avg.toFixed(1)}s (configured ${OLD_PERIOD}s)` : "no samples"
       );

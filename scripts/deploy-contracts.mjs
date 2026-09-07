@@ -28,6 +28,7 @@ import {
   getAddress,
 } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
+import { assertDevnet } from "./lib/devnet-guard.mjs";
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const OUT = join(ROOT, "contracts", "out");
@@ -63,6 +64,9 @@ const giggora = defineChain({
 
 const account = privateKeyToAccount(DEPLOYER_PK);
 const pub = createPublicClient({ chain: giggora, transport: http(RPC_URL) });
+// The deployer key is Anvil #0 — public. It becomes the OWNER of every contract
+// this deploys, so on any chain but the devnet that ownership is anyone's.
+await assertDevnet(pub, { what: "deploy-contracts.mjs" });
 const wallet = createWalletClient({ account, chain: giggora, transport: http(RPC_URL) });
 
 // --- helpers -----------------------------------------------------------------

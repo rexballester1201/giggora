@@ -15,20 +15,27 @@ export default async function SearchPage({
   const { q } = await searchParams;
 
   if (q && q.trim()) {
+    // redirect() is NOT called inside the try. Next implements redirect() by
+    // THROWING a NEXT_REDIRECT control-flow error, so a catch-all around it
+    // swallowed every redirect and this page silently never left the search
+    // landing — the search box "worked" and went nowhere. Resolve first, catch
+    // only the fetch, redirect outside.
+    let target: string | null = null;
     try {
       const res = await fetch(`${API_BASE}/api/search?q=${encodeURIComponent(q.trim())}`, {
         cache: "no-store",
       });
       if (res.ok) {
         const r = await res.json();
-        if (r.kind === "block") redirect(`/block/${r.value}`);
-        if (r.kind === "transaction") redirect(`/tx/${r.value}`);
-        if (r.kind === "token") redirect(`/token/${r.value}`);
-        if (r.kind === "contract" || r.kind === "address") redirect(`/address/${r.value}`);
+        if (r.kind === "block") target = `/block/${r.value}`;
+        else if (r.kind === "transaction") target = `/tx/${r.value}`;
+        else if (r.kind === "token") target = `/token/${r.value}`;
+        else if (r.kind === "contract" || r.kind === "address") target = `/address/${r.value}`;
       }
     } catch {
-      /* fall through to the empty state */
+      /* API unreachable: fall through to the empty state */
     }
+    if (target) redirect(target);
   }
 
   return (

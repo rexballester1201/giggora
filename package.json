@@ -5,7 +5,7 @@
   "type": "module",
   "description": "Giggora — an independent, EVM-compatible Layer-1 blockchain and block explorer.",
   "engines": {
-    "node": ">=20"
+    "node": ">=24"
   },
   "scripts": {
     "genesis": "bash scripts/create-genesis.sh",

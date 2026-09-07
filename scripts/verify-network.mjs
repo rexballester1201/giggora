@@ -28,6 +28,7 @@ import {
   parseEther,
 } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
+import { assertDevnet } from "./lib/devnet-guard.mjs";
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const SKIP_FAULT = process.argv.includes("--skip-fault");
@@ -68,6 +69,8 @@ const giggora = defineChain({
 });
 
 const pub = createPublicClient({ chain: giggora, transport: http(RPC_URL) });
+// The acceptance test sends real transactions from Anvil #0. Devnet only.
+await assertDevnet(pub, { what: "verify-network.mjs" });
 
 // --- tiny test harness -------------------------------------------------------
 const results = [];

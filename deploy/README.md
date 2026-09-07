@@ -24,7 +24,7 @@ deploy/
                     443 (TLS only)
                           │
                    ┌──────┴──────┐
-                   │    Caddy    │  HTTPS, rate limit, hybrid PQ TLS
+                   │    Caddy    │  HTTPS, hybrid PQ TLS (rate limiting is in the API)
                    └──────┬──────┘
                           │ 127.0.0.1
                    ┌──────┴──────┐

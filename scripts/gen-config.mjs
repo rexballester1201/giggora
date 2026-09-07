@@ -33,6 +33,30 @@ const netName = cfg.activeNetwork;
 const net = cfg.networks[netName];
 if (!net) die(`activeNetwork "${netName}" not found in networks`);
 
+// A public network's genesis must never fund an address whose private key is
+// public knowledge. `supply.allocations` is shared across networks, and the
+// devnet allocations are ALL well-known dev accounts — so switching
+// activeNetwork to testnet or mainnet and regenerating would, without this
+// check, hand 100% of the supply to keys every Foundry user already has.
+const isPublic = net.public === true;
+const KNOWN_DEV_ACCOUNTS = new Set([
+  // Besu dev accounts
+  "fe3b557e8fb62b89f4916b721be55ceb828dbd73",
+  "627306090abab3a6e1400e9345bc60c78a8bef57",
+  "f17f52151ebef6c7334fad080c5704d77216b732",
+  // Anvil / Hardhat default accounts #0-#9
+  "f39fd6e51aad88f6f4ce6ab8827279cfffb92266",
+  "70997970c51812dc3a010c7d01b50e0d17dc79c8",
+  "3c44cdddb6a900fa2b585dd299e03d12fa4293bc",
+  "90f79bf6eb2c4f870365e785982e1f101e93b906",
+  "15d34aaf54267db7d7c367839aaf71a00a2c6a65",
+  "9965507d1a55bcc2695c58ba16fb37d819b0a4dc",
+  "976ea74026e726554db657fa54763abd0c3a0aa9",
+  "14dc79964da2c08b23698b3d3cc7ca32193d9955",
+  "23618e81e3f5cdf7f54c3d65f7fbc0abf5b21e8f",
+  "a0ee7a142d267c1f36714e4a8f75612f20a79720",
+]);
+
 // ---------------------------------------------------------------------------
 // Validate supply. A typo here mints or burns money silently, so it is checked
 // rather than trusted.
@@ -47,6 +71,18 @@ for (const a of cfg.supply.allocations) {
   }
   const key = a.address.toLowerCase().replace(/^0x/, "");
   if (alloc[key]) die(`address ${a.address} appears twice in allocations`);
+  if (isPublic) {
+    if (KNOWN_DEV_ACCOUNTS.has(key)) {
+      die(
+        `network "${netName}" is PUBLIC but allocation "${a.role}" funds ${a.address},\n` +
+          `  a publicly-known dev account whose private key is in every tutorial.\n` +
+          `  Replace every allocation with ceremony-generated addresses before building a ${netName} genesis.`
+      );
+    }
+    if (typeof a._key === "string" && /^DEVNET ONLY/i.test(a._key)) {
+      die(`network "${netName}" is PUBLIC but allocation "${a.role}" is still annotated "${a._key}".`);
+    }
+  }
   const wei = BigInt(a.gig) * WEI_PER_GIG;
   actualTotal += wei;
   alloc[key] = { balance: wei.toString() };
@@ -62,9 +98,11 @@ if (actualTotal !== expectedTotal) {
 // ---------------------------------------------------------------------------
 // Hardfork schedule.
 //
-// Shanghai is the ceiling on purpose. Setting cancunTime on a QBFT chain makes
-// Besu attempt EIP-4788 beacon-root system calls, which do not exist outside a
-// PoS chain -> "Invalid system call address" every block (besu issue #9379).
+// Cancun IS supported, but only with the EIP-4788 beacon-roots contract
+// pre-deployed (checked below). Without it, Besu system-calls an empty address
+// every block and logs "Invalid system call address" forever. The comment that
+// used to sit here said Shanghai was the ceiling; that was true before the
+// pre-deploy was added in Phase 3 and had been wrong ever since.
 // ---------------------------------------------------------------------------
 const forkConfig = {
   homesteadBlock: 0,
@@ -143,10 +181,42 @@ const qbftConfigFile = {
     alloc,
   },
   blockchain: {
-    nodes: {
-      generate: true,
-      count: c.validatorCount,
-    },
+    // Validator identity. Two modes:
+    //
+    //   consensus.validators ABSENT  -> Besu generates fresh keys on this
+    //                                   machine. Fine for a devnet; the keys
+    //                                   are disposable.
+    //   consensus.validators PRESENT -> the ceremony's public keys (one per
+    //                                   validator host) go into the genesis
+    //                                   and NO private key is produced here.
+    //
+    // A PUBLIC network refuses the first mode. The documented key ceremony
+    // (docs/deployment.md §1) generates keys on each validator host, but this
+    // file used to hard-code generate:true, so the genesis validator set was
+    // whatever Besu minted on the operator's laptop and never matched the keys
+    // actually deployed — a chain that could not form consensus, or one whose
+    // validator keys had all lived on one shared machine.
+    nodes: (() => {
+      const v = c.validators;
+      if (Array.isArray(v) && v.length > 0) {
+        if (v.length !== c.validatorCount) {
+          die(`consensus.validators has ${v.length} entries but validatorCount is ${c.validatorCount}`);
+        }
+        for (const k of v) {
+          if (!/^(0x)?[0-9a-fA-F]{128}$/.test(k)) {
+            die(`consensus.validators entry is not a 64-byte hex node public key: ${k}`);
+          }
+        }
+        return { generate: false, keys: v.map((k) => (k.startsWith("0x") ? k : "0x" + k)) };
+      }
+      if (isPublic) {
+        die(
+          `network "${netName}" is PUBLIC: consensus.validators (the ceremony's node public keys) is required.\n` +
+            `  Refusing to generate validator private keys on this machine for a public network.`
+        );
+      }
+      return { generate: true, count: c.validatorCount };
+    })(),
   },
 };
 
@@ -184,6 +254,10 @@ const envLines = [
   `CURRENCY_DECIMALS=${cfg.chain.currency.decimals}`,
   "",
   `VALIDATOR_COUNT=${c.validatorCount}`,
+  // 1 when validator keys come from a ceremony (consensus.validators) and no
+  // private keys exist in this checkout; create-genesis.sh skips key
+  // distribution in that case.
+  `VALIDATOR_KEYS_EXTERNAL=${Array.isArray(c.validators) && c.validators.length ? 1 : 0}`,
   `BLOCK_PERIOD_SECONDS=${c.blockPeriodSeconds}`,
   `EMPTY_BLOCK_PERIOD_SECONDS=${c.emptyBlockPeriodSeconds}`,
   `MIN_GAS_PRICE=${cfg.gas.minGasPriceWei}`,

@@ -28,6 +28,9 @@
 #   bash scripts/backup.sh --verify <dir>  # check a backup is restorable
 #
 set -euo pipefail
+# Remember where the operator ran this from BEFORE cd-ing to the repo, so a
+# relative --verify path means what they typed, not repo-root-relative.
+INVOKE_DIR="$PWD"
 cd "$(dirname "${BASH_SOURCE[0]}")/.."
 ROOT="$PWD"
 
@@ -38,7 +41,10 @@ VERIFY_DIR=""
 while [ $# -gt 0 ]; do
   case "$1" in
     --with-index) WITH_INDEX=1; shift ;;
-    --verify) VERIFY_DIR="${2:?--verify needs a directory}"; shift 2 ;;
+    --verify)
+      VERIFY_DIR="${2:?--verify needs a directory}"
+      case "$VERIFY_DIR" in /*|[A-Za-z]:*) ;; *) VERIFY_DIR="$INVOKE_DIR/$VERIFY_DIR" ;; esac
+      shift 2 ;;
     *) echo "unknown argument: $1" >&2; exit 1 ;;
   esac
 done

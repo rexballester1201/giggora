@@ -12,11 +12,16 @@
 
 const $ = (id) => document.getElementById(id);
 
+// FIXED, not read from the query string. An earlier version let ?rpc=&chainId=
+// override these "so one page could serve any network". That made the page a
+// phishing primitive: a crafted link handed an attacker's RPC URL and chain id
+// straight to wallet_addEthereumChain, and the victim's wallet would add a
+// network the attacker controls under this page's name. Anything that reaches
+// the wallet must come from this file, never from the URL.
 const CONFIG = {
-  // Overridable so the same page serves a devnet, a testnet or a local fork.
-  chainId: Number(new URLSearchParams(location.search).get("chainId") ?? 4043),
-  explorer: new URLSearchParams(location.search).get("explorer") ?? "http://localhost:3000",
-  rpcUrl: new URLSearchParams(location.search).get("rpc") ?? "http://localhost:8545",
+  chainId: 4043,
+  explorer: "http://localhost:3000",
+  rpcUrl: "http://localhost:8545",
   symbol: "GIG",
 };
 

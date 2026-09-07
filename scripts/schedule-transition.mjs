@@ -138,11 +138,35 @@ if (flag("list")) {
 }
 
 // --- revert -----------------------------------------------------------------
+// Structural and head-aware, NOT a file restore. The old --revert copied a
+// single shared backup over the live genesis. That backup was written only the
+// FIRST time a transition was scheduled, so reverting a second transition also
+// removed an already-in-force first one — and removing a transition the chain
+// has passed forks the network (see header item 3). This removes only PENDING
+// entries, and refuses to touch one the head has already crossed.
+//
+//   --revert            remove every transition still ahead of the head
+//   --revert <block>    remove only the one scheduled at <block>
 if (flag("revert")) {
-  if (!existsSync(BACKUP)) die("no backup to revert to");
-  copyFileSync(BACKUP, GENESIS);
-  console.log(`\n  Reverted ${GENESIS} from the pre-transition backup.`);
-  console.log("  Restart every node for this to take effect.\n");
+  const list = genesis.config?.transitions?.qbft ?? [];
+  if (!list.length) die("no transitions to revert");
+  const h = await head();
+  const a = arg("revert");
+  const which = a !== null && /^\d+$/.test(a) ? Number(a) : null;
+  const victims = list.filter((t) => (which === null ? true : t.block === which));
+  if (which !== null && !victims.length) die(`no transition is scheduled at block ${which}`);
+  const applied = victims.filter((t) => t.block <= h);
+  if (applied.length) {
+    die(
+      `refusing to remove transition(s) already in force at head ${h}: ${applied.map((t) => t.block).join(", ")}.\n` +
+        `  Removing a past transition FORKS THE NETWORK. Schedule a new forward transition instead.`
+    );
+  }
+  genesis.config.transitions.qbft = list.filter((t) => !victims.includes(t));
+  if (!genesis.config.transitions.qbft.length) delete genesis.config.transitions;
+  writeFileSync(GENESIS, JSON.stringify(genesis, null, 2) + "\n");
+  console.log(`\n  Removed pending transition(s) at block ${victims.map((t) => t.block).join(", ")}.`);
+  console.log("  Restart every node (stop ALL, then start ALL) for this to take effect.\n");
   process.exit(0);
 }
 
@@ -197,7 +221,11 @@ genesis.config.transitions.qbft.push({ block: target, ...changes });
 // and makes "what is in force at block N" obvious to a human.
 genesis.config.transitions.qbft.sort((a, b) => a.block - b.block);
 
-if (!existsSync(BACKUP)) copyFileSync(GENESIS, BACKUP);
+// Forensic copy of the genesis as it was BEFORE this particular schedule. One
+// per target block, always written — the old "only if absent" single file went
+// stale after the first transition and --revert then restored the wrong state.
+// --revert no longer uses these files; they exist so an operator can diff.
+copyFileSync(GENESIS, `${BACKUP}-${target}`);
 writeFileSync(GENESIS, JSON.stringify(genesis, null, 2) + "\n");
 
 const current = genesis.config.qbft;
@@ -222,5 +250,5 @@ ${Object.entries(changes).map(([k, v]) => `    ${k}: ${current[k] ?? "(unset)"} 
     docker compose start validator-1 validator-2 validator-3 validator-4 rpc
 
   Then verify:  node scripts/test-qbft-transition.mjs --expect ${target}
-  Undo (before it lands): node scripts/schedule-transition.mjs --revert
+  Undo (before it lands): node scripts/schedule-transition.mjs --revert ${target}
 `);

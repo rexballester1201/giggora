@@ -161,6 +161,56 @@ Established by testing, not documentation. All three surprised us:
     crash on 429 instead of reporting it. Space runs ~60s apart or you will
     chase phantom regressions. This bit us twice.
 
+### Found by the 2026-09-07 security audit (all fixed; every one verified)
+
+17. **`rate_limit` is NOT a Caddy directive.** It is the third-party plugin
+    `mholt/caddy-ratelimit`; the stock `caddy:2-alpine` image fails to start on
+    it with `unrecognized directive`, taking the whole explorer or RPC down.
+    Rate limiting lives in the explorer API. Verify any Caddyfile change with
+    `caddy validate` against the stock image before deploying.
+18. **The indexer heartbeat is UPDATE-only, never INSERT.** `getCheckpoint()`
+    treats "no row" as "start at genesis". An INSERT-on-heartbeat created the row
+    with `last_processed_block = 0` before block 0 committed, so the next start
+    began at block 1 and **block 0 was skipped permanently**.
+19. **`NEXT_PUBLIC_API_BASE` is an ORIGIN, no path.** The web client appends
+    `/api/...` itself; a value ending in `/api/v1` made every browser-side call
+    hit `/api/v1/api/...` and 404 while server rendering looked fine.
+20. **`TRUSTED_PROXY_CIDR` must be a fact, not a guess.** `deploy/explorer`
+    pins the compose subnet (`10.230.0.0/24`) and Caddy's address
+    (`10.230.0.10`) so the default `/32` is exact. Wrong, every client collapses
+    into ONE rate-limit bucket that a single attacker exhausts for everyone.
+21. **Scripts that sign with the public Anvil key refuse non-devnet chains.**
+    `scripts/lib/devnet-guard.mjs` asks the NODE for `eth_chainId` (not `.env`,
+    which is exactly what would be wrong) and exits unless it is 4043.
+    `GIGGORA_ALLOW_NON_DEVNET=1` overrides, loudly.
+22. **`gen-config.mjs` refuses a PUBLIC network genesis** that funds known dev
+    accounts or lacks `consensus.validators` (ceremony public keys). Before
+    this, switching `activeNetwork` to mainnet handed 100% of supply to keys in
+    every tutorial and minted the validator set on the operator's laptop.
+23. **`create-genesis.sh` refuses to delete existing keys without `--force`.**
+    It used to `rm -rf blockchain/nodes/` on every run — the running chain's
+    identity and history — and the `--keep-keys` flag its header promised was
+    never implemented. Copied keys are now `chmod 600`.
+24. **`schedule-transition.mjs --revert` is structural and head-aware.** It
+    removes only PENDING transitions and refuses one the head has crossed
+    (removing a past transition forks the network). The old file-restore put
+    back a stale backup and could remove an in-force transition.
+25. **Receipts are fetched with bounded concurrency (16).** One `Promise.all`
+    over a full block exceeded Besu's `--rpc-http-max-active-connections` (80)
+    and turned that block into a crash-restart loop.
+26. **Token metadata writes fail CLOSED.** A `name()` returning a NUL byte made
+    the UPDATE fail; the row was never stamped, stayed first in the pending
+    batch, and wedged metadata for every later token. Strings are NUL-stripped
+    and the row is stamped even when the write fails.
+27. **`/api/v1/token/transfers?contractaddress&address` is two indexed branches**
+    (migration 005), not `from = X OR to = X`, which had no covering index and
+    scanned every transfer of the token per request.
+28. **Next's `redirect()` THROWS.** It must not be inside a catch-all `try`, or
+    the redirect is swallowed — the search page "worked" and went nowhere.
+29. **The sample DApp takes NO network config from the query string.** A
+    `?rpc=&chainId=` override was a phishing primitive straight into
+    `wallet_addEthereumChain`.
+
 ---
 
 ## 5. Conventions
@@ -205,7 +255,7 @@ Every number measured, not estimated.
 | Suite | Result |
 |---|---|
 | Network acceptance | 7/7 |
-| Contracts (Foundry) | 28/28 + 12/12 on-chain |
+| Contracts (Foundry) | 49/49 + 12/12 on-chain |
 | Indexer (over 1000 blocks, SIGKILL-tested) | 8/8 |
 | Explorer API | 51/51 |
 | API regressions | 12/12 |
@@ -269,6 +319,9 @@ recovery time grows with outage length.**
   to four VPSes owned by the same person changes uptime, not decentralisation.
 - **A provisioned deployment.** `deploy/` encodes topology and security posture.
   It has never been run against a real host.
+- **A redeployed `GigNFT`.** The devnet instance at `0xe7f1…0512` predates the
+  audit's URI-before-mint ordering fix; source and chain differ for that one
+  contract until `npm run contracts:deploy` is run again.
 - **Bridges, cross-chain, rollups, ZK, staking, governance, DEX, NFT
   marketplace, wallet app, mobile app.** All explicit non-goals for the MVP.
 

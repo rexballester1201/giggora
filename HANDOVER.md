@@ -30,7 +30,7 @@ renders real chain data, and MetaMask connects. Test totals:
 | Suite | Result |
 |---|---|
 | Network acceptance | 7/7 |
-| Contracts (Foundry unit) | 28/28 |
+| Contracts (Foundry unit) | 49/49 |
 | Contracts (on-chain) | 12/12 |
 | Indexer (1000+ blocks, SIGKILL) | 8/8 |
 | Explorer API | 51/51 |
@@ -70,7 +70,11 @@ Be clear-eyed about this; it is most of the remaining work and none of it is cod
 4. **`deploy/` was never provisioned.** The compose files, Caddyfile and ufw
    rules encode the topology and security posture. They have never touched a
    real host. Treat them as a well-reasoned starting point, not evidence.
-   test file. The other three have 28 between them.
+5. **The devnet `GigNFT` instance is pre-audit.** A 2026-09-07 security audit
+   (9 finders, 22 confirmed findings, all fixed — see `CLAUDE.md` §4 items
+   17–29 and the commit) reordered `safeMint` to set the URI before the
+   external `onERC721Received` call. The contract on chain at `0xe7f1…0512`
+   is the earlier bytecode; redeploy to align source and chain.
 6. **Test suites crash on HTTP 429** instead of reporting it. Run them ~60s
    apart or the API's own rate limiter produces phantom failures. This cost real
    debugging time twice.

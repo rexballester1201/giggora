@@ -347,7 +347,7 @@ td code { white-space:nowrap; }
 <h2 id="handover-what-you-are-inheriting">What you are inheriting</h2>
 <h3 id="handover-it-genuinely-works">It genuinely works</h3>
 <p>Not a prototype. The chain produces blocks, contracts deploy and execute, the indexer survives <code>kill -9</code>, the API serves every documented endpoint, the UI renders real chain data, and MetaMask connects. Test totals:</p>
-<div class="table-wrap"><table><thead><tr><th>Suite</th><th>Result</th></tr></thead><tbody><tr><td>Network acceptance</td><td>7/7</td></tr><tr><td>Contracts (Foundry unit)</td><td>28/28</td></tr><tr><td>Contracts (on-chain)</td><td>12/12</td></tr><tr><td>Indexer (1000+ blocks, SIGKILL)</td><td>8/8</td></tr><tr><td>Explorer API</td><td>51/51</td></tr><tr><td>API regressions</td><td>12/12</td></tr><tr><td>Explorer UI</td><td>28/28</td></tr><tr><td>Wallet compatibility</td><td>19/19</td></tr><tr><td>QBFT transitions</td><td>11/11</td></tr></tbody></table></div>
+<div class="table-wrap"><table><thead><tr><th>Suite</th><th>Result</th></tr></thead><tbody><tr><td>Network acceptance</td><td>7/7</td></tr><tr><td>Contracts (Foundry unit)</td><td>49/49</td></tr><tr><td>Contracts (on-chain)</td><td>12/12</td></tr><tr><td>Indexer (1000+ blocks, SIGKILL)</td><td>8/8</td></tr><tr><td>Explorer API</td><td>51/51</td></tr><tr><td>API regressions</td><td>12/12</td></tr><tr><td>Explorer UI</td><td>28/28</td></tr><tr><td>Wallet compatibility</td><td>19/19</td></tr><tr><td>QBFT transitions</td><td>11/11</td></tr></tbody></table></div>
 <p>Devnet at shelving time: <strong>block 2,143 · 22,578 transactions · 4 tokens</strong>.</p>
 <h3 id="handover-one-command-starts-everything">One command starts everything</h3>
 <pre class="code" data-lang="bash"><code>npm run stack</code></pre>
@@ -361,6 +361,7 @@ td code { white-space:nowrap; }
 <li><strong>No independent validators.</strong> All four are on one desktop. QBFT "tolerates one faulty validator" is true of the algorithm and meaningless here — one power cut takes all four. Moving them to four VPSes <em>you</em> own and pay for changes uptime, <strong>not</strong> decentralisation. It stays one operator's chain.</li>
 <li><strong>Mainnet never launched.</strong> Chain ID 4041 is reserved and unused.</li>
 <li><strong><code>deploy/</code> was never provisioned.</strong> The compose files, Caddyfile and ufw rules encode the topology and security posture. They have never touched a real host. Treat them as a well-reasoned starting point, not evidence.</li>
+<li><strong>The devnet <code>GigNFT</code> instance is pre-audit.</strong> A 2026-09-07 security audit (9 finders, 22 confirmed findings, all fixed — see <code>CLAUDE.md</code> §4 items 17–29 and the commit) reordered <code>safeMint</code> to set the URI before the external <code>onERC721Received</code> call. The contract on chain at <code>0xe7f1…0512</code> is the earlier bytecode; redeploy to align source and chain.</li>
 <li><strong>Test suites crash on HTTP 429</strong> instead of reporting it. Run them ~60s apart or the API's own rate limiter produces phantom failures. This cost real debugging time twice.</li>
 </ol>
 <hr class="rule">
@@ -463,7 +464,7 @@ npm run stack:down    # stop everything</code></pre>
 <pre class="code"><code>                       Internet
                           │  443 only
                    ┌──────┴──────┐
-                   │    Caddy    │  TLS, rate limit, hybrid PQ key exchange
+                   │    Caddy    │  TLS termination, hybrid PQ key exchange
                    └──────┬──────┘
                           │ 127.0.0.1
                    ┌──────┴──────┐
@@ -617,6 +618,22 @@ scripts/                              everything operational</code></pre>
 <li><strong><code>API_BASE</code> resolves per-runtime.</strong> <code>NEXT_PUBLIC_*</code> is inlined into <em>both</em> bundles, so a single <code>NEXT_PUBLIC_API_BASE ?? API_BASE</code> makes the server use the browser's address. Server uses the private address, browser the public.</li>
 <li><strong>The rate limiter trips test suites run back-to-back</strong>, and the suites crash on 429 instead of reporting it. Space runs ~60s apart or you will chase phantom regressions. This bit us twice.</li>
 </ol>
+<h3 id="claude-found-by-the-2026-09-07-security-audit-all-fixed-every-one-v">Found by the 2026-09-07 security audit (all fixed; every one verified)</h3>
+<ol start="17">
+<li><strong><code>rate_limit</code> is NOT a Caddy directive.</strong> It is the third-party plugin <code>mholt/caddy-ratelimit</code>; the stock <code>caddy:2-alpine</code> image fails to start on it with <code>unrecognized directive</code>, taking the whole explorer or RPC down. Rate limiting lives in the explorer API. Verify any Caddyfile change with <code>caddy validate</code> against the stock image before deploying.</li>
+<li><strong>The indexer heartbeat is UPDATE-only, never INSERT.</strong> <code>getCheckpoint()</code> treats "no row" as "start at genesis". An INSERT-on-heartbeat created the row with <code>last_processed_block = 0</code> before block 0 committed, so the next start began at block 1 and <strong>block 0 was skipped permanently</strong>.</li>
+<li><strong><code>NEXT_PUBLIC_API_BASE</code> is an ORIGIN, no path.</strong> The web client appends <code>/api/...</code> itself; a value ending in <code>/api/v1</code> made every browser-side call hit <code>/api/v1/api/...</code> and 404 while server rendering looked fine.</li>
+<li><strong><code>TRUSTED_PROXY_CIDR</code> must be a fact, not a guess.</strong> <code>deploy/explorer</code> pins the compose subnet (<code>10.230.0.0/24</code>) and Caddy's address (<code>10.230.0.10</code>) so the default <code>/32</code> is exact. Wrong, every client collapses into ONE rate-limit bucket that a single attacker exhausts for everyone.</li>
+<li><strong>Scripts that sign with the public Anvil key refuse non-devnet chains.</strong> <code>scripts/lib/devnet-guard.mjs</code> asks the NODE for <code>eth_chainId</code> (not <code>.env</code>, which is exactly what would be wrong) and exits unless it is 4043. <code>GIGGORA_ALLOW_NON_DEVNET=1</code> overrides, loudly.</li>
+<li><strong><code>gen-config.mjs</code> refuses a PUBLIC network genesis</strong> that funds known dev accounts or lacks <code>consensus.validators</code> (ceremony public keys). Before this, switching <code>activeNetwork</code> to mainnet handed 100% of supply to keys in every tutorial and minted the validator set on the operator's laptop.</li>
+<li><strong><code>create-genesis.sh</code> refuses to delete existing keys without <code>--force</code>.</strong> It used to <code>rm -rf blockchain/nodes/</code> on every run — the running chain's identity and history — and the <code>--keep-keys</code> flag its header promised was never implemented. Copied keys are now <code>chmod 600</code>.</li>
+<li><strong><code>schedule-transition.mjs --revert</code> is structural and head-aware.</strong> It removes only PENDING transitions and refuses one the head has crossed (removing a past transition forks the network). The old file-restore put back a stale backup and could remove an in-force transition.</li>
+<li><strong>Receipts are fetched with bounded concurrency (16).</strong> One <code>Promise.all</code> over a full block exceeded Besu's <code>--rpc-http-max-active-connections</code> (80) and turned that block into a crash-restart loop.</li>
+<li><strong>Token metadata writes fail CLOSED.</strong> A <code>name()</code> returning a NUL byte made the UPDATE fail; the row was never stamped, stayed first in the pending batch, and wedged metadata for every later token. Strings are NUL-stripped and the row is stamped even when the write fails.</li>
+<li><strong><code>/api/v1/token/transfers?contractaddress&amp;address</code> is two indexed branches</strong> (migration 005), not <code>from = X OR to = X</code>, which had no covering index and scanned every transfer of the token per request.</li>
+<li><strong>Next's <code>redirect()</code> THROWS.</strong> It must not be inside a catch-all <code>try</code>, or the redirect is swallowed — the search page "worked" and went nowhere.</li>
+<li><strong>The sample DApp takes NO network config from the query string.</strong> A <code>?rpc=&amp;chainId=</code> override was a phishing primitive straight into <code>wallet_addEthereumChain</code>.</li>
+</ol>
 <hr class="rule">
 <h2 id="claude-5-conventions">5. Conventions</h2>
 <ul>
@@ -641,7 +658,7 @@ npm run contracts:test # Foundry, needs the 622 MB image</code></pre>
 <hr class="rule">
 <h2 id="claude-7-verified-state">7. Verified state</h2>
 <p>Every number measured, not estimated.</p>
-<div class="table-wrap"><table><thead><tr><th>Suite</th><th>Result</th></tr></thead><tbody><tr><td>Network acceptance</td><td>7/7</td></tr><tr><td>Contracts (Foundry)</td><td>28/28 + 12/12 on-chain</td></tr><tr><td>Indexer (over 1000 blocks, SIGKILL-tested)</td><td>8/8</td></tr><tr><td>Explorer API</td><td>51/51</td></tr><tr><td>API regressions</td><td>12/12</td></tr><tr><td>Explorer UI</td><td>28/28</td></tr><tr><td>Wallet compatibility</td><td>19/19</td></tr><tr><td>QBFT transitions</td><td>11/11</td></tr></tbody></table></div>
+<div class="table-wrap"><table><thead><tr><th>Suite</th><th>Result</th></tr></thead><tbody><tr><td>Network acceptance</td><td>7/7</td></tr><tr><td>Contracts (Foundry)</td><td>49/49 + 12/12 on-chain</td></tr><tr><td>Indexer (over 1000 blocks, SIGKILL-tested)</td><td>8/8</td></tr><tr><td>Explorer API</td><td>51/51</td></tr><tr><td>API regressions</td><td>12/12</td></tr><tr><td>Explorer UI</td><td>28/28</td></tr><tr><td>Wallet compatibility</td><td>19/19</td></tr><tr><td>QBFT transitions</td><td>11/11</td></tr></tbody></table></div>
 <p><strong>Resource use per validator</strong> (<code>--profile=ENTERPRISE</code>):</p>
 <div class="table-wrap"><table><thead><tr><th></th><th>Idle</th><th>Under 10 tx/s</th></tr></thead><tbody><tr><td>RAM</td><td>284–359 MB</td><td>314–359 MB (barely moves)</td></tr><tr><td>CPU</td><td>2–4% of a core</td><td>20–57% of a core</td></tr></tbody></table></div>
 <p>RAM is not the constraint; CPU under sustained load is.</p>
@@ -662,6 +679,7 @@ npm run contracts:test # Foundry, needs the 622 MB image</code></pre>
 <li><strong>Any application.</strong> Nothing uses this chain.</li>
 <li><strong>Independent validators.</strong> All four run on one desktop. "Tolerates 1 faulty validator" is true of the algorithm and operationally meaningless here. Moving to four VPSes owned by the same person changes uptime, not decentralisation.</li>
 <li><strong>A provisioned deployment.</strong> <code>deploy/</code> encodes topology and security posture. It has never been run against a real host.</li>
+<li><strong>A redeployed <code>GigNFT</code>.</strong> The devnet instance at <code>0xe7f1…0512</code> predates the audit's URI-before-mint ordering fix; source and chain differ for that one contract until <code>npm run contracts:deploy</code> is run again.</li>
 <li><strong>Bridges, cross-chain, rollups, ZK, staking, governance, DEX, NFT marketplace, wallet app, mobile app.</strong> All explicit non-goals for the MVP.</li>
 </ul>
 <hr class="rule">

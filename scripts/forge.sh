@@ -18,7 +18,13 @@
 set -euo pipefail
 cd "$(dirname "${BASH_SOURCE[0]}")/.."
 
-FOUNDRY_IMAGE="ghcr.io/foundry-rs/foundry:stable"
+# PINNED BY DIGEST, not by tag. The header above promises reproducible bytecode
+# for contract verification; ":stable" is a MOVING tag and delivered whatever
+# Foundry had published that day, so the promise was false. This digest is the
+#   upstream revision: b0a9dd9ceda36f63e2326ce530c10e6916f4b8a2
+# To upgrade: pull the new tag, run the full contract suite, and record the new
+# digest here in the same commit as any bytecode change.
+FOUNDRY_IMAGE="ghcr.io/foundry-rs/foundry@sha256:043752653d5be351c71709091b3db97c4421c907eb40ea294195e7f532aadf46"
 CACHE_VOLUME="giggora-foundry-cache"
 
 if [ $# -eq 0 ]; then
@@ -42,11 +48,15 @@ fi
 
 docker volume create "$CACHE_VOLUME" >/dev/null 2>&1 || true
 
-# The foundry image's entrypoint takes a single shell string.
+# The image's entrypoint takes a shell string. Arguments are handed to that
+# shell as its own positional parameters ("$@"; the literal `forge` is $0), so
+# each survives intact. The old `-c "forge $*"` flattened them into one string
+# and re-split it, so any argument with whitespace or quotes broke — e.g.
+#   forge test --match-test "transfer reverts"
 docker run --rm \
   -v "${HOST_CONTRACTS}:/work" \
   -v "${CACHE_VOLUME}:/root/.svm" \
   -w /work \
   --entrypoint sh \
   "$FOUNDRY_IMAGE" \
-  -c "forge $*"
+  -c 'forge "$@"' forge "$@"

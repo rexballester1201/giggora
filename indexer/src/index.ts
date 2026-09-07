@@ -81,6 +81,10 @@ const CHAIN_ID = Number(env.CHAIN_ID);
 const RPC_URL = env.RPC_URL;
 const DATABASE_URL = process.env.DATABASE_URL ?? env.DATABASE_URL;
 const POLL_MS = 1000;
+// Receipts fetched per batch inside one block. Besu's default
+// --rpc-http-max-active-connections is 80; stay well under it so a full block
+// can never exhaust the node's connection budget (see indexBlock).
+const RECEIPT_CONCURRENCY = 16;
 // Bounded so one iteration cannot try to hold thousands of blocks in memory.
 const MAX_BATCH = 50;
 
@@ -103,8 +107,18 @@ let shuttingDown = false;
 
 // --- checkpoint --------------------------------------------------------------
 async function getCheckpoint(): Promise<number> {
-  const r = await pool.query("SELECT last_processed_block FROM indexer_state WHERE id = 1");
+  const r = await pool.query("SELECT last_processed_block, chain_id FROM indexer_state WHERE id = 1");
   if (r.rowCount === 0) return -1; // nothing indexed yet; genesis is block 0
+  // A database indexed from one chain must never be appended to from another:
+  // block numbers would collide and the explorer would silently interleave two
+  // histories. Refuse rather than corrupt.
+  const stored = Number(r.rows[0].chain_id);
+  if (stored !== CHAIN_ID) {
+    throw new Error(
+      `indexer_state was written for chain ${stored} but RPC_URL/CHAIN_ID is ${CHAIN_ID}. ` +
+        `Point at the right chain, or use a fresh database.`
+    );
+  }
   return Number(r.rows[0].last_processed_block);
 }
 
@@ -121,9 +135,19 @@ async function indexBlock(blockNumber: number): Promise<{ txs: number; logs: num
 
   // Receipts carry status, gasUsed, effectiveGasPrice, logs and contractAddress
   // — none of which are on the transaction itself.
-  const receipts = await Promise.all(
-    block.transactions.map((tx: any) => rpc.getTransactionReceipt({ hash: tx.hash }))
-  );
+  //
+  // BOUNDED concurrency, not one Promise.all over the whole block. A full block
+  // holds hundreds of transactions; firing one HTTP request per transaction at
+  // once exceeds Besu's default --rpc-http-max-active-connections (80), the
+  // surplus are refused, indexBlock throws, and that block becomes a
+  // crash-restart loop the indexer can never get past.
+  const receipts: any[] = [];
+  for (let i = 0; i < block.transactions.length; i += RECEIPT_CONCURRENCY) {
+    const slice = block.transactions.slice(i, i + RECEIPT_CONCURRENCY);
+    receipts.push(
+      ...(await Promise.all(slice.map((tx: any) => rpc.getTransactionReceipt({ hash: tx.hash }))))
+    );
+  }
 
   const client = await pool.connect();
   let txCount = 0;
@@ -310,7 +334,11 @@ async function indexBlock(blockNumber: number): Promise<{ txs: number; logs: num
        )
        VALUES (1, $1, $2, $3, $4, $5, $6, $7)
        ON CONFLICT (id) DO UPDATE
-         SET last_processed_block   = EXCLUDED.last_processed_block,
+         -- Monotonic. A --from A --to B repair run on an already-indexed
+         -- database re-commits old blocks; without GREATEST it dragged the
+         -- checkpoint BACKWARDS to B and the next start re-indexed everything
+         -- after B.
+         SET last_processed_block   = GREATEST(indexer_state.last_processed_block, EXCLUDED.last_processed_block),
              total_transactions     = indexer_state.total_transactions + EXCLUDED.total_transactions,
              total_logs             = indexer_state.total_logs + EXCLUDED.total_logs,
              total_token_transfers  = indexer_state.total_token_transfers + EXCLUDED.total_token_transfers,
@@ -399,15 +427,19 @@ async function showStatus() {
  * Deliberately its own statement rather than folded into the per-block
  * checkpoint: the checkpoint only runs when there IS a block to index, and the
  * whole point of this row is to prove the indexer is alive when there is not.
+ *
+ * UPDATE only — this must NEVER create the row. getCheckpoint() treats "no row"
+ * as "nothing indexed, start at genesis (block 0)". An earlier version did
+ * INSERT ... last_processed_block = 0 ON CONFLICT DO UPDATE, which on a fresh
+ * database created the row BEFORE the first block committed; the next start
+ * then read 0, began at block 1, and block 0 was skipped permanently. On a
+ * fresh database the heartbeat is simply absent until the first checkpoint
+ * exists, which is the truthful state.
  */
 async function recordHeartbeat(head: number): Promise<void> {
   await pool.query(
-    `INSERT INTO indexer_state (id, last_processed_block, chain_id, chain_head_block)
-     VALUES (1, 0, $2, $1)
-     ON CONFLICT (id) DO UPDATE
-       SET chain_head_block = EXCLUDED.chain_head_block,
-           updated_at = now()`,
-    [head, CHAIN_ID]
+    `UPDATE indexer_state SET chain_head_block = $1, updated_at = now() WHERE id = 1`,
+    [head]
   );
 }
 
@@ -418,9 +450,16 @@ async function run() {
   }
 
   if (flag("tokens")) {
-    const n = await resolvePendingTokenMetadata(pool, rpc, 500);
-    const r = await refreshTokenSupplies(pool, rpc, 500);
-    console.log(`token metadata: ${n} resolved, ${r} supplies refreshed`);
+    // Explicit failure, not an unhandled rejection with a stack trace and no
+    // exit code a cron job can act on.
+    try {
+      const n = await resolvePendingTokenMetadata(pool, rpc, 500);
+      const r = await refreshTokenSupplies(pool, rpc, 500);
+      console.log(`token metadata: ${n} resolved, ${r} supplies refreshed`);
+    } catch (err) {
+      console.error(`token metadata pass failed: ${(err as Error).message}`);
+      process.exitCode = 1;
+    }
     return;
   }
 
@@ -429,6 +468,7 @@ async function run() {
   const once = flag("once");
 
   let next = from !== null ? from : (await getCheckpoint()) + 1;
+  let supplyRefreshTick = 0;
   const startedAt = Date.now();
   let blocksDone = 0;
   let txsDone = 0;
@@ -440,7 +480,11 @@ async function run() {
   );
 
   while (!shuttingDown) {
-    const head = to !== null ? to : Number(await rpc.getBlockNumber());
+    // The heartbeat records the REAL chain head even in --to range-repair mode;
+    // `to` only bounds the loop. Recording `to` as the head made /api/stats
+    // report a stale head as current after every repair run.
+    const chainHead = Number(await rpc.getBlockNumber());
+    const head = to !== null ? Math.min(to, chainHead) : chainHead;
 
     // Heartbeat BEFORE the caught-up check, deliberately. The loop below skips
     // the database entirely when there is nothing to index, so without this a
@@ -451,7 +495,7 @@ async function run() {
     // Non-fatal: a heartbeat failure must never stop ingestion. Reporting
     // staleness is less important than not being stale.
     try {
-      await recordHeartbeat(head);
+      await recordHeartbeat(chainHead);
     } catch (err) {
       console.error(`  heartbeat failed (non-fatal): ${(err as Error).message}`);
     }
@@ -466,6 +510,14 @@ async function run() {
     // transaction: a slow or reverting eth_call must not stall ingestion.
     try {
       await resolvePendingTokenMetadata(pool, rpc, 25);
+      // total_supply changes on every mint and burn, so unlike name/symbol it
+      // is not resolve-once. refreshTokenSupplies() existed but nothing ever
+      // called it except the manual --tokens flag, so the explorer showed
+      // each token's supply as of first sight, forever. Every 30th pass,
+      // 10 tokens, oldest-updated first — cheap and steady.
+      if (++supplyRefreshTick % 30 === 0) {
+        await refreshTokenSupplies(pool, rpc, 10);
+      }
     } catch (err) {
       console.error(`  token metadata resolution failed (non-fatal): ${(err as Error).message}`);
     }

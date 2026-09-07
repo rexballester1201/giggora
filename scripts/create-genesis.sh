@@ -2,8 +2,12 @@
 #
 # Giggora — reproducible genesis generation (brief §6).
 #
-# The same chain.config.json always produces the same genesis, except for the
-# validator node keys, which are freshly generated unless --keep-keys is passed.
+# The same chain.config.json always produces the same genesis. Validator keys
+# are regenerated on every run — so if blockchain/nodes/ already holds keys and
+# chain data, this script REFUSES to delete them unless --force is passed. (An
+# earlier header promised a --keep-keys flag that was never implemented; every
+# run silently destroyed the existing keys.) To reuse keys from a ceremony,
+# set consensus.validators in chain.config.json instead — see gen-config.mjs.
 #
 # Steps:
 #   1. Generate qbftConfigFile.json + .env from chain.config.json
@@ -15,6 +19,15 @@ set -euo pipefail
 
 cd "$(dirname "${BASH_SOURCE[0]}")/.."
 ROOT="$PWD"
+
+FORCE=0
+for a in "$@"; do
+  case "$a" in
+    --force) FORCE=1 ;;
+    -h|--help) sed -n '2,20p' "${BASH_SOURCE[0]}"; exit 0 ;;
+    *) echo "  unknown argument: $a  (accepted: --force)" >&2; exit 1 ;;
+  esac
+done
 
 GENESIS_DIR="$ROOT/blockchain/genesis"
 NETWORK_FILES="$GENESIS_DIR/networkFiles"
@@ -101,7 +114,9 @@ console.log('chainId ' + g.config.chainId + ', extraData ' + g.extraData.length 
 }
 
 KEY_COUNT="$(find "$NETWORK_FILES/keys" -mindepth 1 -maxdepth 1 -type d 2>/dev/null | wc -l | tr -d ' ')"
-if [ "$KEY_COUNT" -ne "$VALIDATOR_COUNT" ]; then
+# With ceremony keys (consensus.validators set), Besu is given public keys and
+# produces NO private keys here, so a key count is meaningless.
+if [ "${VALIDATOR_KEYS_EXTERNAL:-0}" != "1" ] && [ "$KEY_COUNT" -ne "$VALIDATOR_COUNT" ]; then
   echo "  ERROR: expected $VALIDATOR_COUNT validator keys, found $KEY_COUNT (exit $BESU_EXIT)" >&2
   echo "$BESU_OUT" >&2
   exit 1
@@ -122,6 +137,25 @@ fi
 cp "$NETWORK_FILES/genesis.json" "$GENESIS_DIR/genesis.json"
 echo "  Wrote blockchain/genesis/genesis.json"
 
+# Ceremony mode: the genesis embeds the validator public keys supplied in
+# consensus.validators, and the matching PRIVATE keys live only on their own
+# hosts. There is nothing to distribute from here, and this checkout must not
+# touch blockchain/nodes/. Steps 3-5 are the operator's, per host.
+if [ "${VALIDATOR_KEYS_EXTERNAL:-0}" = "1" ]; then
+  cat <<MSG
+
+  Ceremony mode (consensus.validators is set):
+    - genesis.json embeds the ${VALIDATOR_COUNT} ceremony public keys. Verify:
+        sha256sum blockchain/genesis/genesis.json
+      and distribute it byte-identical to every node.
+    - No private keys were generated here. Each host uses its own ceremony key.
+    - Write BOOTNODE_ENODE and each host's static-nodes.json from the ceremony
+      public keys and the hosts' real addresses (docs/deployment.md §2-3).
+
+MSG
+  exit 0
+fi
+
 # --- 3. distribute keys ------------------------------------------------------
 # Besu emits networkFiles/keys/<0xADDRESS>/{key,key.pub}. Sort for determinism
 # so validator-N always maps to the same key across reruns of this script.
@@ -132,6 +166,27 @@ if [ "${#KEY_DIRS[@]}" -ne "$VALIDATOR_COUNT" ]; then
   exit 1
 fi
 
+# DESTRUCTIVE and guarded. blockchain/nodes/ holds the validator PRIVATE KEYS
+# and the Besu chain databases. An unguarded rm -rf here meant that re-running
+# this script to tweak a genesis parameter also destroyed the running chain's
+# identity and history, with no prompt and no way back.
+if [ -d "$NODES_DIR" ] && [ "$FORCE" != "1" ]; then
+  cat <<MSG >&2
+
+  ERROR: $NODES_DIR already exists and contains validator keys and chain data.
+
+    Regenerating the genesis would DELETE the existing validator keys and the
+    Besu chain databases. If that is what you want:
+
+      bash scripts/create-genesis.sh --force
+
+    To only regenerate .env / qbftConfigFile.json without touching keys:
+
+      node scripts/gen-config.mjs
+
+MSG
+  exit 1
+fi
 rm -rf "$NODES_DIR"
 echo ""
 echo "  Validators:"
@@ -142,6 +197,9 @@ for i in "${!KEY_DIRS[@]}"; do
   mkdir -p "$dest"
   cp "$src/key" "$dest/key"
   cp "$src/key.pub" "$dest/key.pub"
+  # A signing key readable by every local user is a signing key with extra
+  # holders. cp inherited the umask (observed 0644); tighten it.
+  chmod 600 "$dest/key"
   printf '    validator-%s  %s\n' "$n" "$(basename "$src")"
 done
 

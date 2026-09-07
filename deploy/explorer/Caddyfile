@@ -26,16 +26,17 @@
 		-Server
 	}
 
-	# API. The explorer API applies its own per-IP limits; this is a coarser
-	# outer bound so sustained abuse never reaches Node at all.
+	# API. Rate limiting is done by the explorer API itself (RATE_LIMIT_MAX /
+	# RATE_LIMIT_WINDOW, keyed per client IP via TRUSTED_PROXY_CIDR), NOT here.
+	#
+	# An earlier version had a `rate_limit { ... }` block at this point. That
+	# directive is not part of Caddy — it is the third-party plugin
+	# github.com/mholt/caddy-ratelimit, which the stock caddy:2-alpine image does
+	# not include. Caddy refused to start with "unrecognized directive:
+	# rate_limit" and the entire explorer was unreachable. If an edge limiter is
+	# wanted later, build a custom image with xcaddy and re-add it; do not paste
+	# the directive back against the stock image.
 	handle /api/* {
-		rate_limit {
-			zone explorer_api {
-				key {remote_host}
-				events 600
-				window 1m
-			}
-		}
 		reverse_proxy api:4000 {
 			# The API reads this to attribute requests to real clients rather
 			# than to Caddy. It only trusts it from TRUSTED_PROXY_CIDR.

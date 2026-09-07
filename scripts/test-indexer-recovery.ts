@@ -216,6 +216,15 @@ report(
     `logs ${snapshot.logs}->${reindexed.logs}`
 );
 report(await duplicates() === 0, "Re-indexing created no duplicates");
+// The checkpoint upsert used to write EXCLUDED.last_processed_block
+// unconditionally, so this very re-index (--from 0 --to 50 on a full database)
+// moved the checkpoint BACKWARDS to 50 and the next start re-indexed everything
+// after it. It is GREATEST() now; this pins that.
+report(
+  reindexed.checkpoint === snapshot.checkpoint,
+  "Re-indexing did not move the checkpoint backwards",
+  `checkpoint ${snapshot.checkpoint} -> ${reindexed.checkpoint}`
+);
 
 console.log(`
   SYSTEM STATUS
