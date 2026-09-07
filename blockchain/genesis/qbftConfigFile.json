@@ -17,7 +17,7 @@
       "fixedBaseFee": true,
       "qbft": {
         "blockperiodseconds": 2,
-        "emptyblockperiodseconds": 60,
+        "emptyblockperiodseconds": 300,
         "epochlength": 30000,
         "requesttimeoutseconds": 4,
         "blockreward": "0x0"

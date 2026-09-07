@@ -11,18 +11,68 @@ document assumes.
 
 ## Prerequisites per host
 
+These are **measured on a running chain**, not estimated from the Besu docs.
+An earlier version of this document specified 8 GB of RAM per validator on the
+reasoning that "the JVM wants 4 GB of heap". Measurement does not support that,
+and the number mattered because it drives what you buy.
+
+What a validator actually uses (2,090 blocks, 2,727 transactions, two load runs,
+`--profile=ENTERPRISE`, the same flag `deploy/` uses):
+
+| | Idle | Under 10 tx/s |
+|---|---|---|
+| RAM | 284–359 MB | 314–359 MB — barely moves |
+| CPU | 2–4% of one core | 20–57% of one core |
+
+RAM is not the constraint. CPU under sustained load is.
+
+### What to provision
+
 | Role | vCPU | RAM | Disk | Public |
 |---|---|---|---|---|
-| Validator | 2 | 8 GB | 100 GB SSD | **none** |
-| RPC node | 4 | 8 GB | 200 GB SSD | 443 only |
+| Validator | 2 | 4 GB | 80 GB SSD | **none** |
+| RPC node | 4 | 4 GB | 160 GB SSD | 443 only |
 | Explorer | 4 | 8 GB | 200 GB SSD | 443 only |
 
-RAM is sized for the JVM. Besu on Java wants 4 GB of heap comfortably; 8 GB of
-host memory leaves room for the OS and page cache. This is the accepted cost of
-the Besu choice (architecture.md §2.3).
+4 GB rather than the measured ~400 MB, deliberately:
 
-Disk grows with chain length. Monitor it — a validator that runs out of disk
-stops, and enough of those is a quorum loss.
+- The JVM sizes its heap as a fraction of available memory. On a 2 GB host the
+  max heap shrinks accordingly, and Besu can then spend its time in GC under a
+  load it would otherwise absorb. Provisioning to observed usage is how you
+  build something that works on the bench and falls over in production.
+- Memory grows with **state**, not with block count. 2,090 blocks holding a
+  handful of contracts is not a state size. Accounts, contract storage and
+  Bonsai trie caches all grow with real use.
+
+The explorer keeps 8 GB because Postgres wants page cache, and its index grows
+faster than the chain does.
+
+### Disk growth
+
+Measured per validator:
+
+| | Value |
+|---|---|
+| Per transaction | 3,889 bytes |
+| Per block (~11 tx) | 43 KB |
+| Besu logs at INFO | 9 MB/day, independent of load |
+| Base install after 2,090 blocks | ~330 MB |
+
+Projected:
+
+| Chain usage | Per day | Per year |
+|---|---|---|
+| Idle | ~11 MB | **~4 GB** |
+| 1 tx/s sustained | 337 MB | ~123 GB |
+| 10 tx/s sustained | 3.4 GB | ~1.2 TB |
+
+Disk is therefore driven almost entirely by **use**, not by uptime. An idle
+chain is nearly free; a busy one is not, and 80 GB buys about 7 months at a
+sustained 1 tx/s. Size the disk from expected throughput and monitor it — a
+validator that runs out of disk stops, and enough of those is a quorum loss.
+
+Cap the logs. They are the one component that grows whether or not anyone uses
+the chain, and on Docker they land in a virtual disk that never shrinks.
 
 ---
 

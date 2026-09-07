@@ -35,11 +35,12 @@
     "validatorCount": 4,
     "_validatorCountNote": "QBFT is n = 3f + 1. 4 validators tolerate 1 faulty node. 3 would tolerate 0.",
     "blockPeriodSeconds": 2,
-    "emptyBlockPeriodSeconds": 60,
+    "emptyBlockPeriodSeconds": 300,
     "epochLength": 30000,
     "requestTimeoutSeconds": 4,
     "blockReward": "0",
-    "_blockRewardNote": "Wei per block. 0 = pre-mine only. Raise later via the `transitions` genesis section, no hard fork needed."
+    "_blockRewardNote": "Wei per block. 0 = pre-mine only. Raise later via the `transitions` genesis section, no hard fork needed.",
+    "_emptyBlockPeriodNote": "An idle chain still produces blocks; each one is a permanent, unbounded disk claim for data nobody reads. 300s cuts idle block production 5x (1440/day -> 288/day) while keeping failure detection at ~10 min: scripts/monitor-chain.mjs derives its liveness budget as emptyBlockPeriodSeconds*2+30, so raising this too far means a dead chain looks merely idle."
   },
   "genesis": {
     "gasLimit": 30000000,
@@ -118,7 +119,6 @@
     "hostPort": 5433,
     "_hostPortNote": "5433 on the host to avoid clashing with a local Postgres install; 5432 inside the network."
   },
-
   "ports": {
     "rpcHttp": 8545,
     "rpcWs": 8546,

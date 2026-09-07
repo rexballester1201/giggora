@@ -1,57 +1,65 @@
 {
-  "config" : {
-    "chainId" : 4043,
-    "homesteadBlock" : 0,
-    "eip150Block" : 0,
-    "eip155Block" : 0,
-    "eip158Block" : 0,
-    "byzantiumBlock" : 0,
-    "constantinopleBlock" : 0,
-    "petersburgBlock" : 0,
-    "istanbulBlock" : 0,
-    "berlinBlock" : 0,
-    "londonBlock" : 0,
-    "shanghaiTime" : 0,
-    "cancunTime" : 0,
-    "fixedBaseFee" : true,
-    "qbft" : {
-      "blockperiodseconds" : 2,
-      "emptyblockperiodseconds" : 60,
-      "epochlength" : 30000,
-      "requesttimeoutseconds" : 4,
-      "blockreward" : "0x0"
+  "config": {
+    "chainId": 4043,
+    "homesteadBlock": 0,
+    "eip150Block": 0,
+    "eip155Block": 0,
+    "eip158Block": 0,
+    "byzantiumBlock": 0,
+    "constantinopleBlock": 0,
+    "petersburgBlock": 0,
+    "istanbulBlock": 0,
+    "berlinBlock": 0,
+    "londonBlock": 0,
+    "shanghaiTime": 0,
+    "cancunTime": 0,
+    "fixedBaseFee": true,
+    "qbft": {
+      "blockperiodseconds": 2,
+      "emptyblockperiodseconds": 60,
+      "epochlength": 30000,
+      "requesttimeoutseconds": 4,
+      "blockreward": "0x0"
+    },
+    "transitions": {
+      "qbft": [
+        {
+          "block": 2131,
+          "emptyblockperiodseconds": 300
+        }
+      ]
     }
   },
-  "nonce" : "0x0",
-  "timestamp" : "0x0",
-  "gasLimit" : "0x1c9c380",
-  "difficulty" : "0x1",
-  "mixHash" : "0x63746963616c2062797a616e74696e65206661756c7420746f6c6572616e6365",
-  "coinbase" : "0x0000000000000000000000000000000000000000",
-  "baseFeePerGas" : "0x3b9aca00",
-  "alloc" : {
-    "fe3b557e8fb62b89f4916b721be55ceb828dbd73" : {
-      "balance" : "400000000000000000000000000"
+  "nonce": "0x0",
+  "timestamp": "0x0",
+  "gasLimit": "0x1c9c380",
+  "difficulty": "0x1",
+  "mixHash": "0x63746963616c2062797a616e74696e65206661756c7420746f6c6572616e6365",
+  "coinbase": "0x0000000000000000000000000000000000000000",
+  "baseFeePerGas": "0x3b9aca00",
+  "alloc": {
+    "fe3b557e8fb62b89f4916b721be55ceb828dbd73": {
+      "balance": "400000000000000000000000000"
     },
-    "627306090abab3a6e1400e9345bc60c78a8bef57" : {
-      "balance" : "300000000000000000000000000"
+    "627306090abab3a6e1400e9345bc60c78a8bef57": {
+      "balance": "300000000000000000000000000"
     },
-    "f17f52151ebef6c7334fad080c5704d77216b732" : {
-      "balance" : "200000000000000000000000000"
+    "f17f52151ebef6c7334fad080c5704d77216b732": {
+      "balance": "200000000000000000000000000"
     },
-    "f39fd6e51aad88f6f4ce6ab8827279cfffb92266" : {
-      "balance" : "50000000000000000000000000"
+    "f39fd6e51aad88f6f4ce6ab8827279cfffb92266": {
+      "balance": "50000000000000000000000000"
     },
-    "70997970c51812dc3a010c7d01b50e0d17dc79c8" : {
-      "balance" : "25000000000000000000000000"
+    "70997970c51812dc3a010c7d01b50e0d17dc79c8": {
+      "balance": "25000000000000000000000000"
     },
-    "3c44cdddb6a900fa2b585dd299e03d12fa4293bc" : {
-      "balance" : "25000000000000000000000000"
+    "3c44cdddb6a900fa2b585dd299e03d12fa4293bc": {
+      "balance": "25000000000000000000000000"
     },
-    "000f3df6d732807ef1319fb7b8bb8522d0beac02" : {
-      "balance" : "0",
-      "code" : "0x3373fffffffffffffffffffffffffffffffffffffffe14604d57602036146024575f5ffd5b5f35801560495762001fff810690815414603c575f5ffd5b62001fff01545f5260205ff35b5f5ffd5b62001fff42064281555f359062001fff015500"
+    "000f3df6d732807ef1319fb7b8bb8522d0beac02": {
+      "balance": "0",
+      "code": "0x3373fffffffffffffffffffffffffffffffffffffffe14604d57602036146024575f5ffd5b5f35801560495762001fff810690815414603c575f5ffd5b62001fff01545f5260205ff35b5f5ffd5b62001fff42064281555f359062001fff015500"
     }
   },
-  "extraData" : "0xf87aa00000000000000000000000000000000000000000000000000000000000000000f85494590ade3c2ca010b82f2eb807565c2c0c5ad2b189942660e4360a5a12d9b6f819b2534bb4515c770420942e35da489af405f298c61a5b2e4e85fcc9ab36b494f5207642a73f3831a3c9604fba99e53c95b74f5ec080c0"
+  "extraData": "0xf87aa00000000000000000000000000000000000000000000000000000000000000000f85494590ade3c2ca010b82f2eb807565c2c0c5ad2b189942660e4360a5a12d9b6f819b2534bb4515c770420942e35da489af405f298c61a5b2e4e85fcc9ab36b494f5207642a73f3831a3c9604fba99e53c95b74f5ec080c0"
 }
