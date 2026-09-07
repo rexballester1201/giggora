@@ -1,0 +1,42 @@
+# Giggora — explorer web UI (Next.js 15, App Router).
+#
+# Two stages, because Next DOES have a build step even though the indexer and
+# API do not.
+#
+# NEXT_PUBLIC_* variables are inlined into the client bundle AT BUILD TIME, not
+# read at runtime. Setting them only in `environment:` produces a page whose
+# server side is configured and whose "Add to MetaMask" button has an undefined
+# chain. They are build args here for that reason.
+FROM node:24-alpine AS builder
+
+WORKDIR /app
+
+ARG NEXT_PUBLIC_API_BASE
+ARG NEXT_PUBLIC_RPC_URL
+ARG NEXT_PUBLIC_EXPLORER_URL
+ARG NEXT_PUBLIC_NETWORK_LABEL
+ENV NEXT_PUBLIC_API_BASE=$NEXT_PUBLIC_API_BASE \
+    NEXT_PUBLIC_RPC_URL=$NEXT_PUBLIC_RPC_URL \
+    NEXT_PUBLIC_EXPLORER_URL=$NEXT_PUBLIC_EXPLORER_URL \
+    NEXT_PUBLIC_NETWORK_LABEL=$NEXT_PUBLIC_NETWORK_LABEL
+
+COPY explorer-web/package.json explorer-web/package-lock.json ./
+RUN npm ci
+
+COPY explorer-web ./
+RUN npm run build
+
+# --- runtime ---------------------------------------------------------------
+FROM node:24-alpine
+
+WORKDIR /app
+ENV NODE_ENV=production
+
+COPY --from=builder /app/node_modules ./node_modules
+COPY --from=builder /app/.next ./.next
+COPY --from=builder /app/package.json ./package.json
+COPY --from=builder /app/next.config.mjs ./next.config.mjs
+
+USER node
+EXPOSE 3000
+CMD ["npm", "run", "start"]

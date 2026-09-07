@@ -42,7 +42,12 @@
     "api:regressions": "node scripts/test-api-regressions.ts",
     "test:all": "node scripts/verify-network.mjs && node scripts/verify-indexer.ts && node scripts/test-api.ts && node scripts/test-api-regressions.ts && node scripts/test-explorer-web.mjs && node scripts/test-wallet.mjs",
     "dapp": "node dapp/serve.mjs",
-    "wallet:test": "node scripts/test-wallet.mjs"
+    "wallet:test": "node scripts/test-wallet.mjs",
+    "monitor": "node scripts/monitor-chain.mjs",
+    "monitor:watch": "node scripts/monitor-chain.mjs --watch 30",
+    "backup": "bash scripts/backup.sh",
+    "transition": "node scripts/schedule-transition.mjs",
+    "transition:test": "node scripts/test-qbft-transition.mjs"
   },
   "dependencies": {
     "@fastify/cors": "^11.3.0",

@@ -1,0 +1,175 @@
+# Giggora — explorer stack: Postgres + migrations + indexer + API + web + TLS.
+#
+# Runs on its own host. It holds NO validator key and NO consensus state — every
+# row in the database is rederivable by replaying the chain, which is why
+# scripts/backup.sh treats the dump as an optimisation rather than as data
+# safety.
+#
+# The build context is the REPOSITORY ROOT (`../..`), because the indexer and
+# API take their dependencies from the root package.json.
+#
+#   docker compose --env-file .env -f docker-compose.yml build
+#   docker compose --env-file .env -f docker-compose.yml up -d
+
+name: giggora-explorer
+
+services:
+  # --------------------------------------------------------------------------
+  # Postgres. NEVER published to a host port (brief §32). It is reachable only
+  # on this compose network, by name. If you find yourself adding a `ports:`
+  # entry here, put a bastion or a tunnel in front of it instead.
+  # --------------------------------------------------------------------------
+  postgres:
+    image: ${POSTGRES_IMAGE:-postgres:17-alpine}
+    container_name: giggora-explorer-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_INITDB_ARGS: "--data-checksums"
+    command: postgres -c max_connections=200 -c shared_buffers=512MB
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ../../database/migrations:/migrations:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 10s
+    logging: &logging
+      driver: json-file
+      options: { max-size: "100m", max-file: "5" }
+
+  # --------------------------------------------------------------------------
+  # Migrations, as a one-shot. Every migration is idempotent (see
+  # scripts/db-migrate.sh), so running this on each deploy is safe and means the
+  # indexer can never start against a schema older than its code.
+  # --------------------------------------------------------------------------
+  migrate:
+    image: ${POSTGRES_IMAGE:-postgres:17-alpine}
+    container_name: giggora-explorer-migrate
+    restart: "no"
+    depends_on:
+      postgres: { condition: service_healthy }
+    environment:
+      # PG* are libpq's own variables, so psql needs no flags and no second
+      # source of truth. env_file: is deliberately NOT used here: it makes the
+      # file mandatory at that exact path, which breaks `docker compose config`
+      # and every CI lint before a .env exists.
+      PGHOST: postgres
+      PGUSER: ${POSTGRES_USER}
+      PGDATABASE: ${POSTGRES_DB}
+      PGPASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - ../../database/migrations:/migrations:ro
+    entrypoint: ["/bin/sh", "-c"]
+    command: >
+      'set -e; for f in /migrations/*.sql; do
+         echo "applying $$f";
+         psql -v ON_ERROR_STOP=1 -q -f "$$f";
+       done; echo "migrations ok"'
+    logging: *logging
+
+  # --------------------------------------------------------------------------
+  # Indexer. Reads the RPC node over the network, writes rows. Crash-safe: the
+  # block rows and the checkpoint move in ONE transaction, so a kill at any
+  # point resumes correctly (verified under SIGKILL, 8/8).
+  # --------------------------------------------------------------------------
+  indexer:
+    build:
+      context: ../..
+      dockerfile: deploy/explorer/Dockerfile.node
+    image: giggora/explorer-node:latest
+    container_name: giggora-indexer
+    restart: unless-stopped
+    depends_on:
+      postgres: { condition: service_healthy }
+      migrate: { condition: service_completed_successfully }
+    environment:
+      DATABASE_URL: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      RPC_URL: ${RPC_URL}
+      CHAIN_ID: ${CHAIN_ID}
+      CHAIN_NAME: ${CHAIN_NAME}
+      CURRENCY_NAME: ${CURRENCY_NAME}
+      CURRENCY_SYMBOL: ${CURRENCY_SYMBOL}
+      CURRENCY_DECIMALS: ${CURRENCY_DECIMALS}
+    command: ["node", "indexer/src/index.ts"]
+    logging: *logging
+
+  # --------------------------------------------------------------------------
+  # API. Same image, different command.
+  # --------------------------------------------------------------------------
+  api:
+    image: giggora/explorer-node:latest
+    container_name: giggora-api
+    restart: unless-stopped
+    depends_on:
+      postgres: { condition: service_healthy }
+      migrate: { condition: service_completed_successfully }
+    environment:
+      DATABASE_URL: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      API_HOST: 0.0.0.0
+      API_PORT: 4000
+      API_POOL_SIZE: ${API_POOL_SIZE:-10}
+      RATE_LIMIT_MAX: ${RATE_LIMIT_MAX:-120}
+      RATE_LIMIT_WINDOW: ${RATE_LIMIT_WINDOW:-60000}
+      # Caddy's address on this network. Left UNSET behind a proxy, every
+      # request looks like it came from Caddy and the rate limiter degrades into
+      # a single global bucket; set to `true` it trusts a client-supplied header
+      # and the limiter becomes decorative. Neither is what you want.
+      TRUSTED_PROXY_CIDR: ${TRUSTED_PROXY_CIDR}
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+    command: ["node", "explorer-api/src/server.ts"]
+    logging: *logging
+
+  # --------------------------------------------------------------------------
+  # Web UI. NEXT_PUBLIC_* are BUILD ARGS, not runtime environment — Next inlines
+  # them into the client bundle at build time. Change one and you must rebuild.
+  # --------------------------------------------------------------------------
+  web:
+    build:
+      context: ../..
+      dockerfile: deploy/explorer/Dockerfile.web
+      args:
+        NEXT_PUBLIC_API_BASE: ${NEXT_PUBLIC_API_BASE}
+        NEXT_PUBLIC_RPC_URL: ${NEXT_PUBLIC_RPC_URL}
+        NEXT_PUBLIC_EXPLORER_URL: ${NEXT_PUBLIC_EXPLORER_URL}
+        NEXT_PUBLIC_NETWORK_LABEL: ${NEXT_PUBLIC_NETWORK_LABEL}
+    image: giggora/explorer-web:latest
+    container_name: giggora-web
+    restart: unless-stopped
+    depends_on: [api]
+    environment:
+      # Server components call the API over this network, not via the public
+      # hostname — shorter path, and it keeps working if DNS is having a day.
+      API_BASE: http://api:4000
+      NODE_ENV: production
+    logging: *logging
+
+  # --------------------------------------------------------------------------
+  # Caddy. The only service with a public port.
+  # --------------------------------------------------------------------------
+  caddy:
+    image: caddy:2-alpine
+    container_name: giggora-explorer-caddy
+    restart: unless-stopped
+    depends_on: [web, api]
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    environment:
+      PUBLIC_HOSTNAME: ${PUBLIC_HOSTNAME}
+      ACME_EMAIL: ${ACME_EMAIL}
+    logging: *logging
+
+volumes:
+  pgdata:
+  caddy-data:
+  caddy-config:

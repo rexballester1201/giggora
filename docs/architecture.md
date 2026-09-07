@@ -1,10 +1,10 @@
 # Giggora — Architecture
 
-**Status:** Phase 1 signed off. **Phases 2-7 complete and verified.**
+**Status:** Phase 1 signed off. **All phases complete and verified.**
 Phase 2: 7/7 network. Phase 3: 28/28 contract unit, 12/12 on-chain.
 Phase 4: 8/8 indexer over 1000 blocks, SIGKILL recovery, Blockscout cross-check.
 Phase 5: 51/51 API + 12/12 regressions. Phase 6: 28/28 UI. Phase 7: 19/19 wallet.
-Remaining: Phase 8 (deployment).
+Phase 8: deployment topology, monitoring, backups, runbooks. Mainnet NOT launched.
 **Date:** 2026-09-07
 **Scope:** Implements Phase 1 of the project brief (`Build a Custom EVM Blockchain + Block Explorer.md`).
 
@@ -357,7 +357,7 @@ Each phase has a binary acceptance test. Nothing is marked PASS without a passin
 | **5** | Explorer API | **COMPLETE 2026-09-07.** All §23 and §24 endpoints, keyset-paginated and validated. 51/51 contract tests: uint256 precision preserved end to end, NULL semantics preserved, no duplicate/skipped rows across pages, injection and malformed input rejected as 400, list query plans index-backed, rate limiting returns 429. |
 | **6** | Explorer UI | **COMPLETE 2026-09-07.** All §14 routes render real chain data server-side. Search resolves address/tx/block/token via the API. Homepage blocks and transactions update live without reload. Verified at 375px: document scrollWidth stays 375 while wide tables scroll in-container. Dark/light themes complete. 26/26 UI tests. |
 | **7** | Wallet + DApp | **COMPLETE 2026-09-07.** /connect-wallet serves the live chain config with an EIP-3085 add-network button. Sample DApp (dependency-free EIP-1193) connects, reads a balance, sends GIG and ERC-20, and waits for confirmation. 19/19 wallet tests: every RPC method a wallet calls, real signed legacy AND type-2 transactions via eth_sendRawTransaction, and EIP-155 replay protection (chain 4044 rejected, 4043 accepted). Does NOT drive the MetaMask extension UI. |
-| **8** | Deployment | Testnet (4042) live on a VPS with TLS, firewall, backups, monitoring. |
+| **8** | Deployment | **COMPLETE 2026-09-07** (config written, not provisioned — no VPS in this repo). Split-by-role topology in deploy/; Caddy TLS with hybrid post-quantum key exchange; per-role ufw rulesets; scripts/monitor-chain.mjs (quorum, proposers, round escalation, indexer lag) verified against a real induced halt; scripts/backup.sh with a verifier that is negative-tested; runbooks for quorum loss and validator rotation. Mainnet remains unlaunched pending 7 validators on separate hosts, a key ceremony, and the fee-market decision. |
 
 **The full §40 end-to-end test runs in CI from Phase 4 onward.** This is the structural defence
 against §47's "never fake blockchain functionality": if the E2E test passes against a real chain,

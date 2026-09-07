@@ -16,11 +16,14 @@ depending on Ethereum, BSC, or Polygon.
 | Total supply | 1,000,000,000 GIG |
 | Devnet chain ID | 4043 |
 
-> **Status: Phases 1-7 of 8 COMPLETE.** Chain verified (7/7), contracts deployed
-> (28/28 unit + 12/12 on-chain), indexer crash-tested and verified over 1000 blocks (8/8),
-> explorer API serving every §23/§24 endpoint (51/51 + 12/12 regressions), explorer UI
-> live with all §14 routes (28/28), and wallet compatibility proven (19/19).
-> Remaining: Phase 8 (deployment).
+> **Status: all 8 phases COMPLETE.** Chain verified (7/7), contracts deployed (28/28 unit +
+> 12/12 on-chain), indexer crash-tested over 1000 blocks (8/8), explorer API (51/51 + 12/12
+> regressions), explorer UI (28/28), wallet compatibility (19/19), and production deployment
+> topology, monitoring, backups and runbooks.
+>
+> The devnet is real and running. **Mainnet is not launched** and should not be until the
+> open items in [docs/deployment.md](docs/deployment.md) are settled — 7 validators on
+> separate hosts, a real key ceremony, and the fee-market decision.
 > See [docs/architecture.md](docs/architecture.md) for the full plan.
 
 ---

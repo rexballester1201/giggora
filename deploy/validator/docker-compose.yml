@@ -1,0 +1,60 @@
+# Giggora — ONE validator, on its own host.
+#
+# Deliberately NOT the devnet's four-in-one-file layout. A validator set that
+# shares a machine shares a failure, and QBFT stops below quorum rather than
+# degrading.
+#
+# This host publishes NOTHING to the internet:
+#   - p2p 30303 is opened only to the other validators and the RPC node (ufw)
+#   - JSON-RPC binds to 127.0.0.1 for local monitoring only
+#   - the signing key lives here and never leaves
+#
+# Copy .env.example to .env and fill it in per host.
+
+name: giggora-validator
+
+services:
+  validator:
+    image: ${BESU_IMAGE}
+    container_name: giggora-validator
+    restart: unless-stopped
+    stop_grace_period: 30s
+
+    volumes:
+      - ./genesis.json:/config/genesis.json:ro
+      - ./data:/data
+      # Signing key. Mode 0600, owned by the container user, never in git,
+      # never in an image layer.
+      - ./key:/data/key:ro
+      - ./static-nodes.json:/data/static-nodes.json:ro
+
+    # Host networking so p2p advertises the host's real address. The devnet uses
+    # a docker network with static IPs; across hosts the real address is what
+    # peers must dial, and ufw does the isolation.
+    network_mode: host
+
+    command: >
+      --genesis-file=/config/genesis.json
+      --data-path=/data
+      --node-private-key-file=/data/key
+      --nat-method=NONE
+      --p2p-host=${P2P_ADVERTISED_HOST}
+      --p2p-port=${P2P_PORT:-30303}
+      --bootnodes=${BOOTNODE_ENODE}
+      --min-gas-price=${MIN_GAS_PRICE}
+      --rpc-http-enabled
+      --rpc-http-host=127.0.0.1
+      --rpc-http-port=8545
+      --rpc-http-api=ETH,NET,WEB3,QBFT
+      --host-allowlist=localhost,127.0.0.1
+      --metrics-enabled
+      --metrics-host=127.0.0.1
+      --metrics-port=9545
+      --profile=ENTERPRISE
+      --logging=INFO
+
+    logging:
+      driver: json-file
+      options:
+        max-size: "100m"
+        max-file: "5"

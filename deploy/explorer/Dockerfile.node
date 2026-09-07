@@ -1,0 +1,28 @@
+# Giggora — indexer and explorer API.
+#
+# Both are plain Node 24 and share this image; they differ only in the command
+# compose gives them. Neither has a build step: Node 24 strips TypeScript types
+# natively, so `node indexer/src/index.ts` runs the source as written. There is
+# no tsc, no bundler, and nothing to go stale between the repo and the image.
+#
+# Their dependencies live in the ROOT package.json, not in indexer/ or
+# explorer-api/ — those directories have no package.json of their own.
+FROM node:24-alpine
+
+WORKDIR /app
+
+# Dependencies first, so a source change does not reinstall them.
+COPY package.json package-lock.json ./
+RUN npm ci --omit=dev
+
+COPY indexer ./indexer
+COPY explorer-api ./explorer-api
+COPY database ./database
+
+# Never run as root. The node image ships a `node` user for exactly this.
+USER node
+
+ENV NODE_ENV=production
+
+# Overridden per service in docker-compose.yml.
+CMD ["node", "explorer-api/src/server.ts"]

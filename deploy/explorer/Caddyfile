@@ -1,0 +1,54 @@
+# Giggora block explorer.
+#
+# One hostname serves both the UI and the API: the browser calls /api/* on the
+# same origin it loaded from, so there is no CORS preflight on every request and
+# no second certificate to renew.
+#
+# Like the RPC endpoint, this gets hybrid post-quantum TLS for free — Caddy is
+# Go, and Go 1.24+ negotiates X25519MLKEM768 by default. That protects the
+# transport. It says nothing about the chain's signatures, which are secp256k1
+# and not post-quantum (docs/architecture.md §14).
+
+{
+	email {$ACME_EMAIL}
+	# Test here first to avoid burning Let's Encrypt rate limits on a typo:
+	# acme_ca https://acme-staging-v02.api.letsencrypt.org/directory
+}
+
+{$PUBLIC_HOSTNAME} {
+	encode gzip
+
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		X-Content-Type-Options "nosniff"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		X-Frame-Options "DENY"
+		-Server
+	}
+
+	# API. The explorer API applies its own per-IP limits; this is a coarser
+	# outer bound so sustained abuse never reaches Node at all.
+	handle /api/* {
+		rate_limit {
+			zone explorer_api {
+				key {remote_host}
+				events 600
+				window 1m
+			}
+		}
+		reverse_proxy api:4000 {
+			# The API reads this to attribute requests to real clients rather
+			# than to Caddy. It only trusts it from TRUSTED_PROXY_CIDR.
+			header_up X-Real-IP {remote_host}
+		}
+	}
+
+	handle /health {
+		respond "ok" 200
+	}
+
+	# Everything else is the Next.js app.
+	handle {
+		reverse_proxy web:3000
+	}
+}

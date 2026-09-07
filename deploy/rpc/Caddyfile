@@ -1,0 +1,69 @@
+# Giggora public RPC endpoint.
+#
+# Caddy obtains and renews certificates automatically via ACME.
+#
+# POST-QUANTUM TLS COMES FREE HERE. Caddy is built on Go, and Go 1.24+ enables
+# the X25519MLKEM768 hybrid key exchange by default, so sessions are already
+# protected against "harvest now, decrypt later" without any configuration.
+# That is the only part of Giggora that is post-quantum today — the chain's
+# secp256k1 signatures are not (see docs/architecture.md §14). Do not confuse
+# the two, and do not describe the chain as quantum-resistant because of this.
+
+{
+	email {$ACME_EMAIL}
+	# Uncomment to test against staging and avoid Let's Encrypt rate limits:
+	# acme_ca https://acme-staging-v02.api.letsencrypt.org/directory
+}
+
+{$PUBLIC_HOSTNAME} {
+	encode gzip
+
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		X-Content-Type-Options "nosniff"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		# The RPC endpoint is an API, never a page. Nothing should frame it.
+		X-Frame-Options "DENY"
+		-Server
+	}
+
+	# Coarse per-IP limit at the edge. The explorer API applies its own finer
+	# limits; this one exists so abuse is dropped before it reaches Besu at all.
+	rate_limit {
+		zone rpc {
+			key {remote_host}
+			events 300
+			window 1m
+		}
+	}
+
+	# JSON-RPC. Only POST is meaningful; anything else is rejected outright
+	# rather than forwarded.
+	@rpc {
+		path /
+		method POST
+	}
+	handle @rpc {
+		reverse_proxy 127.0.0.1:8545 {
+			header_up X-Real-IP {remote_host}
+		}
+	}
+
+	# WebSocket subscriptions (newHeads, logs).
+	@ws {
+		path /ws
+		header Connection *Upgrade*
+		header Upgrade websocket
+	}
+	handle @ws {
+		reverse_proxy 127.0.0.1:8546
+	}
+
+	handle /health {
+		respond "ok" 200
+	}
+
+	handle {
+		respond "Giggora JSON-RPC. POST to / with a JSON-RPC 2.0 body." 405
+	}
+}

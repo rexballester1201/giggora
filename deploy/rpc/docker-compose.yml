@@ -1,0 +1,65 @@
+# Giggora — public RPC node + TLS reverse proxy.
+#
+# This is the ONLY host that faces the internet. It holds no validator key, so
+# it structurally cannot propose blocks: compromising it cannot compromise
+# consensus.
+#
+# Caddy terminates TLS and is the only thing bound to a public port. Besu binds
+# to 127.0.0.1 and is never reachable directly.
+
+name: giggora-rpc
+
+services:
+  besu:
+    image: ${BESU_IMAGE}
+    container_name: giggora-rpc
+    restart: unless-stopped
+    stop_grace_period: 30s
+    network_mode: host
+    volumes:
+      - ./genesis.json:/config/genesis.json:ro
+      - ./data:/data
+      - ./static-nodes.json:/data/static-nodes.json:ro
+    command: >
+      --genesis-file=/config/genesis.json
+      --data-path=/data
+      --nat-method=NONE
+      --p2p-host=${P2P_ADVERTISED_HOST}
+      --p2p-port=${P2P_PORT:-30303}
+      --bootnodes=${BOOTNODE_ENODE}
+      --min-gas-price=${MIN_GAS_PRICE}
+      --rpc-http-enabled
+      --rpc-http-host=127.0.0.1
+      --rpc-http-port=8545
+      --rpc-http-api=ETH,NET,WEB3,QBFT,TXPOOL
+      --rpc-ws-enabled
+      --rpc-ws-host=127.0.0.1
+      --rpc-ws-port=8546
+      --host-allowlist=${PUBLIC_HOSTNAME}
+      --rpc-http-cors-origins=${CORS_ORIGINS}
+      --metrics-enabled
+      --metrics-host=127.0.0.1
+      --metrics-port=9545
+      --profile=ENTERPRISE
+      --logging=INFO
+    logging:
+      driver: json-file
+      options: { max-size: "100m", max-file: "5" }
+
+  caddy:
+    image: caddy:2-alpine
+    container_name: giggora-caddy
+    restart: unless-stopped
+    network_mode: host
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    environment:
+      PUBLIC_HOSTNAME: ${PUBLIC_HOSTNAME}
+      ACME_EMAIL: ${ACME_EMAIL}
+    depends_on: [besu]
+
+volumes:
+  caddy-data:
+  caddy-config:
