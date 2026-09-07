@@ -40,6 +40,30 @@ x-besu-base: &besu-base
     options:
       max-size: "20m"
       max-file: "3"
+  # Besu extracts its JNI libraries to java.io.tmpdir on EVERY start and never
+  # removes them. Measured: librocksdbjni*.so is 15 MB a copy, and after a day
+  # of restarts /tmp held 121 entries and 456 MB PER NODE. It is a per-restart
+  # leak, not per-block, so the nodes restarted most during the quorum-loss test
+  # were the largest on disk.
+  #
+  # Chain data is bind-mounted to ./blockchain/nodes (the host disk), but /tmp
+  # is the container writable layer — on Docker Desktop that is inside
+  # docker_data.vhdx, which grows and never shrinks. So this leak lands on the
+  # system drive and stays there.
+  #
+  # tmpfs keeps it in RAM: it vanishes on stop and never reaches a disk. Besu
+  # needs one copy of each library (~50 MB); 256m is ample and tmpfs allocates
+  # lazily, so it costs only what is actually written.
+  #
+  # exec IS LOAD-BEARING. Docker mounts tmpfs noexec,nosuid,nodev by default,
+  # and Besu does not merely WRITE those libraries to /tmp, it dlopen()s them.
+  # Without exec every node crash-loops on startup with
+  #   UnsatisfiedLinkError: libckzg4844jni.so: failed to map segment from
+  #   shared object
+  # which reads like a corrupt file rather than a mount option. Verified by
+  # breaking it exactly this way.
+  tmpfs:
+    - /tmp:size=256m,exec
 
 services:
   # validator-1 is the bootnode: no --bootnodes flag (self-reference is rejected).
