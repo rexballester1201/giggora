@@ -16,10 +16,10 @@ depending on Ethereum, BSC, or Polygon.
 | Total supply | 1,000,000,000 GIG |
 | Devnet chain ID | 4043 |
 
-> **Status: Phases 1-3 of 8 COMPLETE.** The chain is running and verified end to end
-> (7/7 network checks), and the ERC-20/721/1155 sample contracts are deployed to it
-> (28/28 unit tests, 12/12 on-chain checks).
-> The indexer, explorer API, and explorer UI are not yet built.
+> **Status: Phases 1-4 of 8 COMPLETE.** Chain running and verified (7/7 network checks),
+> ERC-20/721/1155 contracts deployed (28/28 unit tests, 12/12 on-chain checks), and the
+> indexer is running, crash-tested under SIGKILL, and cross-checked against Blockscout.
+> The explorer API and explorer UI are not yet built.
 > See [docs/architecture.md](docs/architecture.md) for the full plan.
 
 ---
@@ -224,6 +224,80 @@ The deploy script does more than deploy: it reads the emitted logs back off the 
 their exact shape — ERC-20 `Transfer` has 3 topics with the value in `data`, ERC-721 `Transfer`
 has 4 topics with empty `data`. That distinction is exactly what the Phase 4 indexer will use to
 tell the two standards apart.
+
+---
+
+## Indexer
+
+The indexer reads blocks, transactions, receipts and logs from the RPC node into
+PostgreSQL, decoding ERC-20/721/1155 transfers as it goes.
+
+```bash
+docker compose up -d postgres        # start the database
+bash scripts/db-migrate.sh           # apply schema
+node indexer/src/index.ts --once     # catch up to the chain head, then exit
+node indexer/src/index.ts            # follow the head continuously
+node indexer/src/index.ts --status   # how far behind are we?
+```
+
+Written in TypeScript and run directly by Node 24's native type stripping — no build step.
+
+**What makes it crash-safe.** A block's rows and the checkpoint advance inside a *single*
+database transaction, so `last_processed_block` can never be ahead of the data it
+describes. A `kill -9` at any instant rolls back cleanly and the next start resumes
+exactly where it stopped. Every insert is `ON CONFLICT DO NOTHING`, so re-indexing a
+range is a no-op rather than a duplicate-key crash.
+
+**There is deliberately no reorg handling.** QBFT has absolute finality, so a committed
+block can never be replaced. This removes what is normally the hardest part of writing an
+indexer. If Giggora ever moves to probabilistic finality this assumption breaks, and
+blocks would need a canonical/orphaned flag.
+
+### Verification
+
+```bash
+node scripts/verify-indexer.ts          # compare the database against the RPC node
+node scripts/test-indexer-recovery.ts   # SIGKILL mid-write, verify clean recovery
+node scripts/crosscheck-blockscout.ts   # diff against an independent implementation
+```
+
+Three layers, deliberately: the RPC node is canonical truth, the recovery test proves
+durability, and Blockscout catches the kind of error a single implementation would make
+consistently in both its writer and its reader.
+
+### Blockscout
+
+Blockscout runs alongside as an independent cross-check, in its own database:
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.blockscout.yml up -d blockscout
+```
+
+Its API is then at `http://localhost:4000/api/v2/blocks`.
+
+Two settings are non-obvious and were both required to make it index at all:
+
+- **`ETHEREUM_JSONRPC_WS_URL` is required** even with `ETHEREUM_JSONRPC_TRANSPORT: http`.
+  Without it the realtime fetcher never establishes a chain head, and `block_catchup`
+  logs `Index already caught up` with a null range forever — it looks perfectly healthy
+  while indexing nothing at all.
+- **Besu needs the `TXPOOL` namespace enabled.** Otherwise Blockscout's pending-transaction
+  fetcher gets `Method not enabled`, interprets it as the whole node being down, and flaps
+  between fallback URLs.
+
+### A schema difference worth knowing
+
+For ERC-1155 **batch** transfers the two indexers disagree by design:
+
+| | Giggora | Blockscout |
+|---|---|---|
+| Rows per batch log | one **per token id** | one **per log** |
+| Ids / amounts | separate rows, keyed by `batch_index` | `token_ids` / `amounts` arrays |
+
+Ours is normalised so "every transfer of token id X" is an indexed lookup instead of an
+array scan. Neither is wrong, so `crosscheck-blockscout.ts` compares at log granularity.
+This surfaced as a real off-by-one before it was understood — the cross-check earning its
+keep on its first run.
 
 ---
 

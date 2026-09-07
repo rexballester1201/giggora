@@ -20,9 +20,22 @@
     "contracts:build": "bash scripts/forge.sh build",
     "contracts:test": "bash scripts/forge.sh test",
     "contracts:deploy": "node scripts/deploy-contracts.mjs",
-    "verify:all": "node scripts/verify-network.mjs && bash scripts/forge.sh test && node scripts/deploy-contracts.mjs"
+    "verify:all": "node scripts/verify-network.mjs && bash scripts/forge.sh test && node scripts/deploy-contracts.mjs",
+    "db:migrate": "bash scripts/db-migrate.sh",
+    "indexer": "node indexer/src/index.ts",
+    "indexer:once": "node indexer/src/index.ts --once",
+    "indexer:status": "node indexer/src/index.ts --status",
+    "indexer:verify": "node scripts/verify-indexer.ts",
+    "indexer:recovery-test": "node scripts/test-indexer-recovery.ts",
+    "blockscout:up": "docker compose -f docker-compose.yml -f docker-compose.blockscout.yml up -d blockscout",
+    "blockscout:down": "docker compose -f docker-compose.yml -f docker-compose.blockscout.yml stop blockscout",
+    "crosscheck": "node scripts/crosscheck-blockscout.ts",
+    "load": "node scripts/load-generator.mjs"
   },
   "devDependencies": {
     "viem": "2.56.3"
+  },
+  "dependencies": {
+    "pg": "^8.23.0"
   }
 }

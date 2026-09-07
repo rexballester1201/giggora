@@ -108,6 +108,17 @@
       }
     ]
   },
+  "database": {
+    "image": "postgres:16-alpine",
+    "name": "giggora",
+    "user": "giggora",
+    "devnetPassword": "giggora_devnet_only_not_a_secret",
+    "_passwordNote": "DEVNET ONLY, and deliberately not a secret — the same reasoning as the publicly-known devnet signing keys. Postgres is bound to 127.0.0.1 and never exposed publicly (brief §32). For testnet/mainnet, override POSTGRES_PASSWORD from a real secret store and never commit it (brief §30).",
+    "port": 5432,
+    "hostPort": 5433,
+    "_hostPortNote": "5433 on the host to avoid clashing with a local Postgres install; 5432 inside the network."
+  },
+
   "ports": {
     "rpcHttp": 8545,
     "rpcWs": 8546,
@@ -123,6 +134,7 @@
       "validatorIpPrefix": "172.28.0.",
       "validatorIpStart": 11,
       "rpcIp": "172.28.0.20",
+      "postgresIp": "172.28.0.30",
       "_note": "Static IPs are REQUIRED, not cosmetic. Besu rejects an enode URL whose host is a DNS name ('Invalid ip address'), so the bootnode must be reachable at a fixed IP. validator-N = validatorIpPrefix + (validatorIpStart + N - 1)."
     }
   }

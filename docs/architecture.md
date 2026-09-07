@@ -1,8 +1,9 @@
 # Giggora — Architecture
 
-**Status:** Phase 1 signed off. **Phases 2 and 3 complete and verified.**
-Phase 2: 7/7 network acceptance checks. Phase 3: 28/28 contract unit tests, 12/12 on-chain checks.
-Phase 4 (Blockscout + indexer) not started.
+**Status:** Phase 1 signed off. **Phases 2, 3 and 4 complete and verified.**
+Phase 2: 7/7 network checks. Phase 3: 28/28 contract unit tests, 12/12 on-chain checks.
+Phase 4: 8/8 indexer checks, crash recovery under SIGKILL, cross-checked against Blockscout.
+Phase 5 (explorer API) not started.
 **Date:** 2026-09-07
 **Scope:** Implements Phase 1 of the project brief (`Build a Custom EVM Blockchain + Block Explorer.md`).
 
@@ -333,7 +334,7 @@ Each phase has a binary acceptance test. Nothing is marked PASS without a passin
 | **1** | This document | Signed off. |
 | **2** | Chain running | **COMPLETE 2026-09-07.** 4 validators produce blocks; killing 1 does **not** halt the chain; `eth_chainId` returns 4043; GIG transfers change balances; ~2s blocks under load. All 7 checks in `scripts/verify-network.mjs` pass. |
 | **3** | Contracts | **COMPLETE 2026-09-07.** ERC-20/721/1155 deploy via Foundry (28 unit tests pass); deployed to devnet with on-chain log shapes verified; `scripts/deploy-contracts.mjs` reproduces it on demand. |
-| **4** | Blockscout + indexer | Blockscout shows real blocks. Custom indexer matches Blockscout across 1000 consecutive blocks. `kill -9` mid-index → clean resume, zero duplicates, zero gaps. |
+| **4** | Blockscout + indexer | **COMPLETE 2026-09-07.** Blockscout indexes the chain and serves its API. Custom indexer verified field-by-field against RPC, and agrees with Blockscout on blocks, hashes, validators, gas and every transaction hash. `kill -9` mid-index survives with zero gaps, zero duplicates, no lost progress; re-indexing is a no-op. |
 | **5** | Explorer API | All §23 endpoints, paginated and validated; contract tests pass. |
 | **6** | Explorer UI | All §14 routes; search resolves address/tx/block/token; live updates; responsive to 375px. |
 | **7** | Wallet + DApp | MetaMask add-network works; native and ERC-20 transfers from MetaMask; sample DApp completes a send and confirmation. |

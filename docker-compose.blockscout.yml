@@ -1,0 +1,73 @@
+# Giggora — Blockscout, run as an INDEPENDENT CROSS-CHECK (architecture.md §6).
+#
+# This is Track 1 of the explorer strategy. Blockscout is a mature, widely
+# deployed EVM explorer; running it against Giggora does two things:
+#
+#   1. proves the chain is indexable by standard third-party tooling, not just
+#      by code we wrote ourselves;
+#   2. gives an independent implementation to diff our own indexer against.
+#
+# It is deliberately a SEPARATE compose file: Blockscout is heavy (Elixir, its
+# own database, its own migrations) and the chain must not depend on it.
+#
+#   Start:  docker compose -f docker-compose.yml -f docker-compose.blockscout.yml up -d blockscout
+#   Stop:   docker compose -f docker-compose.yml -f docker-compose.blockscout.yml stop blockscout
+#
+# Blockscout keeps its own database, separate from the Giggora indexer's, so the
+# two never contaminate each other — that is the whole point of a cross-check.
+
+services:
+  blockscout:
+    image: ghcr.io/blockscout/blockscout:8.1.1
+    container_name: giggora-blockscout
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      giggora:
+        ipv4_address: 172.28.0.40
+    ports:
+      - "127.0.0.1:4000:4000"
+    environment:
+      # --- chain connection ---
+      ETHEREUM_JSONRPC_VARIANT: besu
+      ETHEREUM_JSONRPC_TRANSPORT: http
+      # Without a WS URL the realtime fetcher never establishes a chain head, and
+      # block_catchup then reports "Index already caught up" with a null range
+      # forever — it looks healthy while indexing nothing.
+      ETHEREUM_JSONRPC_WS_URL: ws://giggora-rpc:8546/
+      ETHEREUM_JSONRPC_HTTP_URL: http://giggora-rpc:8545/
+      ETHEREUM_JSONRPC_TRACE_URL: http://giggora-rpc:8545/
+      ETHEREUM_JSONRPC_DISABLE_ARCHIVE_BALANCES: "false"
+      CHAIN_ID: "${CHAIN_ID}"
+      NETWORK: Giggora
+      SUBNETWORK: "${CHAIN_NETWORK}"
+      COIN: "${CURRENCY_SYMBOL}"
+      COIN_NAME: "${CURRENCY_SYMBOL}"
+
+      # --- its own database, separate from the Giggora indexer's ---
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@giggora-postgres:5432/blockscout
+      ECTO_USE_SSL: "false"
+
+      # Session signing key. The fallback is a DEVNET value and is not a secret —
+      # same reasoning as the publicly-known devnet signing keys. For anything
+      # reachable from outside localhost, set BLOCKSCOUT_SECRET_KEY_BASE in the
+      # environment from a real secret store; never commit the real one (§30).
+      #   openssl rand -base64 48
+      SECRET_KEY_BASE: ${BLOCKSCOUT_SECRET_KEY_BASE:-devnetOnlyNotASecretRMgI4C1HSkxsEjdhPWFQrIcHb3RQGJ0kJDTHfCS4}
+
+      PORT: "4000"
+      # Bounded so Blockscout cannot exhaust Postgres connections.
+      POOL_SIZE: "20"
+      POOL_SIZE_API: "10"
+      # No price feed exists for a devnet coin; asking for one just logs errors.
+      DISABLE_MARKET: "true"
+      DISABLE_EXCHANGE_RATES: "true"
+      MIX_ENV: prod
+      BLOCK_TRANSFORMER: base
+      # Backfill from genesis so the cross-check covers the same range we index.
+      FIRST_BLOCK: "0"
+    command: >
+      sh -c "bin/blockscout eval \"Elixir.Explorer.ReleaseTasks.create_and_migrate()\" &&
+             bin/blockscout start"

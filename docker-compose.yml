@@ -176,7 +176,7 @@ services:
       --rpc-http-enabled
       --rpc-http-host=0.0.0.0
       --rpc-http-port=8545
-      --rpc-http-api=ETH,NET,WEB3,QBFT
+      --rpc-http-api=ETH,NET,WEB3,QBFT,TRACE,TXPOOL
       --rpc-ws-enabled
       --rpc-ws-host=0.0.0.0
       --rpc-ws-port=8546
@@ -185,6 +185,40 @@ services:
       --rpc-http-cors-origins=all
       --profile=ENTERPRISE
       --logging=INFO
+
+  # --- Phase 4: indexer datastore ---
+  # Bound to 127.0.0.1 only: the database is never publicly exposed (brief §32).
+  postgres:
+    image: ${POSTGRES_IMAGE}
+    container_name: giggora-postgres
+    hostname: giggora-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_INITDB_ARGS: "--data-checksums"
+    # Blockscout opens a large connection pool of its own; the default 100 is
+    # not enough once our indexer and psql sessions are added.
+    command: postgres -c max_connections=300 -c shared_buffers=256MB
+    volumes:
+      - giggora-pgdata:/var/lib/postgresql/data
+      - ./database/migrations:/migrations:ro
+    networks:
+      giggora:
+        ipv4_address: ${POSTGRES_IP}
+    ports:
+      - "127.0.0.1:${POSTGRES_HOST_PORT}:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 10s
+
+volumes:
+  giggora-pgdata:
+    name: giggora-pgdata
 
 networks:
   giggora:
