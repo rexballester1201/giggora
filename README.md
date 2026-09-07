@@ -16,12 +16,11 @@ depending on Ethereum, BSC, or Polygon.
 | Total supply | 1,000,000,000 GIG |
 | Devnet chain ID | 4043 |
 
-> **Status: Phases 1-6 of 8 COMPLETE.** Chain running and verified (7/7 network checks),
-> ERC-20/721/1155 contracts deployed (28/28 unit tests, 12/12 on-chain checks), indexer
-> crash-tested under SIGKILL and verified against 1000 blocks, explorer API serving every
-> §23/§24 endpoint (51/51 contract tests), and the explorer UI live with all §14 routes
-> (26/26 UI tests).
-> Remaining: Phase 7 (wallet/DApp) and Phase 8 (deployment).
+> **Status: Phases 1-7 of 8 COMPLETE.** Chain verified (7/7), contracts deployed
+> (28/28 unit + 12/12 on-chain), indexer crash-tested and verified over 1000 blocks (8/8),
+> explorer API serving every §23/§24 endpoint (51/51 + 12/12 regressions), explorer UI
+> live with all §14 routes (28/28), and wallet compatibility proven (19/19).
+> Remaining: Phase 8 (deployment).
 > See [docs/architecture.md](docs/architecture.md) for the full plan.
 
 ---
@@ -389,6 +388,51 @@ throw that away at the final step. A test asserts the treasury balance renders e
 Verified at 375px: the document's `scrollWidth` stays exactly 375 while wide tables scroll
 inside their own container — the page body never scrolls horizontally. Dark and light
 themes are both complete palettes, applied before first paint so there is no flash.
+
+---
+
+## Wallets and the sample DApp
+
+Giggora is a standard EVM chain, so MetaMask and any other EIP-1193 wallet work without
+a plugin or a fork.
+
+```bash
+# network config, one-click add, devnet test keys
+http://localhost:3000/connect-wallet
+
+# sample DApp: connect, balance, send GIG, send ERC-20, wait for confirmation
+node dapp/serve.mjs                # http://localhost:3001
+
+node scripts/test-wallet.mjs       # 19 wallet compatibility tests
+```
+
+The DApp is deliberately **dependency-free** — raw EIP-1193, no web3 library, no bundler.
+What it demonstrates is the *chain*; a framework in the middle would obscure that.
+
+### What the wallet tests actually prove
+
+They do **not** drive the MetaMask extension UI, and this repository does not claim to.
+A wallet is two things — a signer and a JSON-RPC client — so the tests cover both parts
+Giggora is responsible for:
+
+- every RPC method a wallet calls during a send, including `eth_feeHistory` and
+  `eth_maxPriorityFeePerGas`, without which a wallet cannot build an EIP-1559 fee;
+- **real secp256k1-signed transactions**, legacy *and* type-2, broadcast through
+  `eth_sendRawTransaction` — byte-for-byte the submission path MetaMask uses after the
+  user clicks Confirm;
+- **EIP-155 replay protection**: a transaction signed for chain 4044 is rejected with
+  `Wrong chainId`, while the identical transaction signed for 4043 is accepted.
+
+What remains unverified here is Consensys's extension UI, which is not our code.
+
+### One trap worth recording
+
+viem's `walletClient` **silently overrides the `chainId` you pass** with its own
+configured chain. The first version of the replay-protection test signed "for chain 4044"
+through the client, got a valid 4043 transaction back, and reported that Giggora accepts
+foreign-chain transactions — an alarming finding that was purely an artefact of the test.
+Signing offline with `account.signTransaction` takes the chain id literally, and is the
+only way to actually exercise this.
 
 ---
 

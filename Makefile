@@ -10,7 +10,7 @@
 #
 # ...or use the npm equivalents: npm run genesis / start / stop / verify / clean
 
-.PHONY: api-regressions help config genesis start stop restart logs status test clean reset setup-contracts contracts contracts-test deploy-contract db-migrate indexer api api-test web-build web web-test
+.PHONY: dapp wallet-test api-regressions help config genesis start stop restart logs status test clean reset setup-contracts contracts contracts-test deploy-contract db-migrate indexer api api-test web-build web web-test
 
 help:
 	@echo ""
@@ -44,6 +44,10 @@ help:
 	@echo "  make web-build        Build the explorer UI"
 	@echo "  make web              Serve the built explorer UI"
 	@echo "  make web-test         Run the explorer UI tests"
+	@echo ""
+	@echo "  Wallet + DApp:"
+	@echo "  make dapp             Serve the sample DApp"
+	@echo "  make wallet-test      Run wallet compatibility tests"
 	@echo ""
 
 config:
@@ -115,3 +119,9 @@ web-test:
 
 api-regressions:
 	node scripts/test-api-regressions.ts
+
+dapp:
+	node dapp/serve.mjs
+
+wallet-test:
+	node scripts/test-wallet.mjs

@@ -40,7 +40,9 @@
     "web:start": "npm --prefix explorer-web run start",
     "web:test": "node scripts/test-explorer-web.mjs",
     "api:regressions": "node scripts/test-api-regressions.ts",
-    "test:all": "node scripts/verify-network.mjs && node scripts/verify-indexer.ts && node scripts/test-api.ts && node scripts/test-api-regressions.ts && node scripts/test-explorer-web.mjs"
+    "test:all": "node scripts/verify-network.mjs && node scripts/verify-indexer.ts && node scripts/test-api.ts && node scripts/test-api-regressions.ts && node scripts/test-explorer-web.mjs && node scripts/test-wallet.mjs",
+    "dapp": "node dapp/serve.mjs",
+    "wallet:test": "node scripts/test-wallet.mjs"
   },
   "dependencies": {
     "@fastify/cors": "^11.3.0",

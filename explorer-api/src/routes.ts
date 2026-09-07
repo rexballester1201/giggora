@@ -475,7 +475,49 @@ export async function registerRoutes(app: FastifyInstance) {
       // TransferBatch expands to one row per token id, so a 250-id batch
       // silently lost 50 movements with nothing indicating the answer was partial.
       tokenTransfersTruncated: transfers.length > 200,
+      // A flag without a recovery path would only DISCLOSE the loss, not fix it:
+      // every other transfer endpoint filters by token or address, never by
+      // transaction, so the overflow was otherwise unreachable.
+      tokenTransfersPath: `/api/transactions/${h}/token-transfers`,
     };
+  });
+
+  // -------------------------------------------------------------------------
+  // GET /api/transactions/:hash/token-transfers
+  //
+  // The detail route caps embedded transfers at 200 and reports
+  // tokenTransfersTruncated. A flag alone is not enough: without this route the
+  // overflow was genuinely unreachable, because every other transfer endpoint
+  // filters by token or by address, not by transaction. One ERC-1155
+  // TransferBatch expands to one row per token id, so a large batch really can
+  // exceed the cap.
+  //
+  // Keyed on (log_index, batch_index) within the transaction — batch_index is
+  // essential, since a batch shares one log_index across all its ids.
+  // -------------------------------------------------------------------------
+  app.get("/api/transactions/:hash/token-transfers", async (req) => {
+    const { hash } = req.params as { hash: string };
+    const h = parseHash(hash, "hash");
+    const { limit, cursor } = parsePage(req.query as Record<string, unknown>);
+    const key = decodeCursor(cursor, "txt", 2, [MAX_INT4, MAX_INT4]);
+    const kl = key ? key[0] : MIN_TIEBREAK;
+    const kx = key ? key[1] : MIN_TIEBREAK;
+
+    const rows = await query(
+      `SELECT tt.*, tk.name, tk.symbol, tk.decimals
+         FROM token_transfers tt
+         LEFT JOIN tokens tk ON tk.address = tt.token_address
+        WHERE tt.transaction_hash = $1
+          AND (tt.log_index, tt.batch_index) > ($2, $3)
+        ORDER BY tt.log_index ASC, tt.batch_index ASC
+        LIMIT $4`,
+      [hashToBytes(h), kl, kx, limit + 1]
+    );
+
+    const page = buildPage(rows, limit, (r: any) =>
+      encodeCursor("txt", [Number(r.log_index), Number(r.batch_index)])
+    );
+    return { items: page.items.map(mapTransfer), nextCursor: page.nextCursor };
   });
 
   // -------------------------------------------------------------------------

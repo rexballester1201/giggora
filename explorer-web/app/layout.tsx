@@ -18,6 +18,7 @@ const NAV = [
   { href: "/contracts", label: "Contracts" },
   { href: "/validators", label: "Validators" },
   { href: "/charts", label: "Charts" },
+  { href: "/connect-wallet", label: "Connect wallet" },
 ];
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

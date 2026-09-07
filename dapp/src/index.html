@@ -1,0 +1,117 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Giggora Sample DApp</title>
+    <style>
+      :root {
+        --bg: #f7f9fa; --surface: #fff; --border: #dde5e8; --text: #0f2027;
+        --dim: #5b7079; --brand: #0d7d78; --ok: #17795e; --fail: #b3261e;
+        --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+      }
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --bg: #0b1416; --surface: #101c1f; --border: #21383d; --text: #e6f0f2;
+          --dim: #8aa4ab; --brand: #2bb6ae; --ok: #4ecfa4; --fail: #f2837c;
+        }
+      }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0; padding: 1.5rem; background: var(--bg); color: var(--text);
+        font: 15px/1.5 ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+      }
+      main { max-width: 720px; margin: 0 auto; }
+      h1 { font-size: 1.25rem; margin: 0 0 .25rem; }
+      .sub { color: var(--dim); font-size: .875rem; margin: 0 0 1.5rem; }
+      section {
+        background: var(--surface); border: 1px solid var(--border);
+        border-radius: .75rem; padding: 1rem; margin-bottom: 1rem;
+      }
+      h2 { font-size: .875rem; margin: 0 0 .75rem; }
+      label { display: block; font-size: .75rem; color: var(--dim); margin: .5rem 0 .25rem; }
+      input {
+        width: 100%; padding: .5rem .625rem; border: 1px solid var(--border);
+        border-radius: .5rem; background: var(--bg); color: var(--text);
+        font-family: var(--mono); font-size: .8125rem;
+      }
+      button {
+        padding: .5rem 1rem; border: 0; border-radius: .5rem; background: var(--brand);
+        color: #fff; font-weight: 600; font-size: .875rem; cursor: pointer;
+      }
+      button:disabled { opacity: .5; cursor: not-allowed; }
+      button.secondary { background: transparent; color: var(--brand); border: 1px solid var(--border); }
+      .row { display: flex; gap: .5rem; flex-wrap: wrap; align-items: center; }
+      .mono { font-family: var(--mono); font-size: .8125rem; word-break: break-all; }
+      .dim { color: var(--dim); }
+      .ok { color: var(--ok); }
+      .fail { color: var(--fail); }
+      .kv { display: grid; grid-template-columns: minmax(110px, 160px) 1fr; gap: .375rem 1rem; font-size: .875rem; }
+      .kv dt { color: var(--dim); }
+      .kv dd { margin: 0; }
+      .log {
+        font-family: var(--mono); font-size: .75rem; background: var(--bg);
+        border: 1px solid var(--border); border-radius: .5rem; padding: .75rem;
+        max-height: 260px; overflow: auto; white-space: pre-wrap; word-break: break-all;
+      }
+      .hidden { display: none; }
+      a { color: var(--brand); }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>Giggora Sample DApp</h1>
+      <p class="sub">
+        Proves Giggora works with ordinary EVM tooling: connect a wallet, read a balance,
+        send the native coin and an ERC-20, and wait for confirmation.
+        Deliberately dependency-free — raw EIP-1193, no web3 library — so what it
+        demonstrates is the <em>chain</em>, not a framework.
+      </p>
+
+      <section>
+        <h2>Wallet</h2>
+        <div class="row">
+          <button id="connect">Connect wallet</button>
+          <button id="switch" class="secondary hidden">Switch to Giggora</button>
+        </div>
+        <p id="walletMsg" class="sub" style="margin: .75rem 0 0"></p>
+        <dl class="kv hidden" id="walletInfo" style="margin-top: .75rem">
+          <dt>Account</dt><dd class="mono" id="account">—</dd>
+          <dt>Chain ID</dt><dd class="mono" id="chainId">—</dd>
+          <dt>Balance</dt><dd class="mono" id="balance">—</dd>
+        </dl>
+      </section>
+
+      <section id="sendNative" class="hidden">
+        <h2>Send GIG</h2>
+        <label for="toNative">Recipient address</label>
+        <input id="toNative" placeholder="0x…" spellcheck="false" />
+        <label for="amtNative">Amount (GIG)</label>
+        <input id="amtNative" value="1" spellcheck="false" />
+        <div class="row" style="margin-top: .75rem">
+          <button id="btnNative">Send GIG</button>
+        </div>
+      </section>
+
+      <section id="sendToken" class="hidden">
+        <h2>Send ERC-20</h2>
+        <label for="tokenAddr">Token contract</label>
+        <input id="tokenAddr" placeholder="0x…" spellcheck="false" />
+        <label for="toToken">Recipient address</label>
+        <input id="toToken" placeholder="0x…" spellcheck="false" />
+        <label for="amtToken">Amount (whole tokens)</label>
+        <input id="amtToken" value="1" spellcheck="false" />
+        <div class="row" style="margin-top: .75rem">
+          <button id="btnToken">Send tokens</button>
+        </div>
+      </section>
+
+      <section>
+        <h2>Activity</h2>
+        <div class="log" id="log">Ready.</div>
+      </section>
+    </main>
+
+    <script src="./app.js"></script>
+  </body>
+</html>

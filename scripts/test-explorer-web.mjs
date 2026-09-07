@@ -102,6 +102,7 @@ const ROUTES = [
   ["/validators", "Block producers"],
   ["/charts", "Transactions per block"],
   ["/search", "Search"],
+  ["/connect-wallet", "Connect a wallet"],
 ];
 
 for (const [path, marker] of ROUTES) {
@@ -163,6 +164,21 @@ await check("Blocks list matches the API's first page", async () => {
     .filter((n) => !t.includes(n));
   assert(missing.length === 0, `block numbers missing from the page: ${missing.join(", ")}`);
   return `${page.items.length} blocks all present`;
+});
+
+await check("Wallet page shows the LIVE chain config", async () => {
+  // Every value must come from the chain rather than being hard-coded, so a
+  // chain id change can never leave this page telling users to connect to the
+  // wrong network — the one mistake on this page that costs real money.
+  const r = await html("/connect-wallet");
+  const t = text(r.body);
+  const hex = "0x" + stats.chainId.toString(16);
+  assert(t.includes(String(stats.chainId)), `chain id ${stats.chainId} not shown`);
+  assert(t.includes(hex), `hex chain id ${hex} not shown (wallets require hex)`);
+  assert(t.includes(stats.currency.symbol), "currency symbol not shown");
+  assert(/never use them/i.test(t), "devnet keys are listed without a warning");
+  assert(/reachable/i.test(t), "no caveat that the RPC URL must be browser-reachable");
+  return `chain ${stats.chainId} (${hex}), ${stats.currency.symbol}`;
 });
 
 // ---------------------------------------------------------------------------
