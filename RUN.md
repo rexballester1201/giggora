@@ -9,6 +9,13 @@ was written down.
 
 ## Start everything
 
+**Windows: double-click `run.bat`.** It starts Docker Desktop for you if it is
+not already running, waits for the engine, brings everything up, waits until the
+websites actually answer, prints the addresses and opens the explorer. Stop with
+`stop.bat`.
+
+Or, from a terminal:
+
 ```bash
 npm run stack
 ```
@@ -192,6 +199,8 @@ both, because they bind the same ports.
 
 | Command | Does |
 |---|---|
+| **`run.bat`** | **Start everything** (double-click; starts Docker Desktop if needed) |
+| **`stop.bat`** | **Stop everything** (removes containers; deletes nothing) |
 | `npm run stack` | Start everything (chain + explorer + faucet) |
 | `npm run stack:stop` | **Pause** — keeps containers and data |
 | `npm run stack:start` | Resume from a pause |
