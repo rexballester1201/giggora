@@ -11,6 +11,17 @@ export const metadata: Metadata = {
     "Block explorer for Giggora — an independent, EVM-compatible Layer-1 blockchain.",
 };
 
+/**
+ * The faucet is a SEPARATE service on its own origin, so it is a plain anchor
+ * rather than a next/link — Link would try to client-navigate to a route this
+ * app does not have.
+ *
+ * NEXT_PUBLIC_* is inlined at BUILD time (see CLAUDE.md §4 item 19), so this
+ * must be a build arg for the container image; changing it needs a rebuild, not
+ * a restart. Unset, it points at the local faucet.
+ */
+const FAUCET_URL = process.env.NEXT_PUBLIC_FAUCET_URL ?? "http://localhost:4200";
+
 const NAV = [
   { href: "/blocks", label: "Blocks" },
   { href: "/transactions", label: "Transactions" },
@@ -19,7 +30,31 @@ const NAV = [
   { href: "/validators", label: "Validators" },
   { href: "/charts", label: "Charts" },
   { href: "/connect-wallet", label: "Connect wallet" },
+  { href: FAUCET_URL, label: "Faucet", external: true },
 ];
+
+/** One nav entry, internal or external. */
+function NavLink({
+  item,
+  className,
+}: {
+  item: { href: string; label: string; external?: boolean };
+  className?: string;
+}) {
+  const style = { color: item.external ? "var(--brand)" : "var(--text-dim)" };
+  if (item.external) {
+    return (
+      <a href={item.href} className={className} style={style} rel="noopener">
+        {item.label}
+      </a>
+    );
+  }
+  return (
+    <Link href={item.href} className={className} style={style}>
+      {item.label}
+    </Link>
+  );
+}
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
@@ -57,9 +92,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
 
               <nav className="hidden items-center gap-4 text-sm lg:flex">
                 {NAV.map((n) => (
-                  <Link key={n.href} href={n.href} style={{ color: "var(--text-dim)" }}>
-                    {n.label}
-                  </Link>
+                  <NavLink key={n.href} item={n} />
                 ))}
               </nav>
 
@@ -72,9 +105,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             {/* Mobile nav: scrolls horizontally rather than wrapping (§36). */}
             <nav className="mt-2 flex gap-4 overflow-x-auto text-sm lg:hidden">
               {NAV.map((n) => (
-                <Link key={n.href} href={n.href} className="whitespace-nowrap" style={{ color: "var(--text-dim)" }}>
-                  {n.label}
-                </Link>
+                <NavLink key={n.href} item={n} className="whitespace-nowrap" />
               ))}
             </nav>
           </div>

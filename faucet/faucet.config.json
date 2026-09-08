@@ -1,0 +1,55 @@
+{
+  "_README": "Giggora faucet — the single source of truth for its economics and limits. Every value here is checked at startup by src/config.ts; a nonsensical one refuses to boot rather than being silently clamped.",
+
+  "pool": {
+    "totalGig": "20000000",
+    "_totalGigNote": "Total the faucet may EVER dispense, in whole GIG. Also the denominator of the drip curve below, so changing it rescales the whole schedule. At 20000000 with drip.maxGig 10 the schedule is exactly 10 GIG at 20M left, 9 at 18M, 8 at 16M, 7 at 14M, 6 at 12M, 5 at 10M (50% left = 50% rate), down to 1 at 2M.",
+    "_thisIsACeilingNotABalance": "This is an ACCOUNTING LIMIT — the most the faucet will ever hand out. It is NOT an amount that has to sit in the hot wallet. See hotWallet below: fund the signing key with a working float and top it up. A 20,000,000 GIG pool behind a key on a web server would be 2% of total supply reachable by anyone who compromises that server.",
+    "_ifYouMeant10M": "Set totalGig to 10000000 and the curve halves cleanly: 10 GIG at 10M left, 5 at 5M, 1 at 1M. Nothing else changes."
+  },
+
+  "drip": {
+    "maxGig": 10,
+    "_maxGigNote": "Payout at a full pool, in whole GIG. The rate falls in proportion to the fraction of the pool remaining: rate = ceil(maxGig * remaining / total), capped at maxGig. With totalGig 20000000 and maxGig 10 that is exactly 10 GIG at 20M left, 9 at 18M, 8 at 16M, 7 at 14M, 6 at 12M, 5 at 10M (50% left = 50% rate), down to 1.",
+    "_whyCeil": "Ceiling, not rounding, so the payout is always a whole GIG and only steps down when the pool has genuinely crossed a band. At 19M of 20M you still get 10."
+  },
+
+  "dailyCap": {
+    "gig": "20000",
+    "_note": "Most the faucet will dispense in any rolling 24 hours, across EVERYONE. This is the strongest limit here by a wide margin: no number of addresses, IP addresses or CPUs gets past it. It puts a floor of pool/dailyCap days on how fast the pool can drain — 20,000,000 / 20,000 = at least 1,000 days.",
+    "_tradeoff": "It is a shared budget, so a farmer who claims early in the day consumes part of what honest users could have had. It bounds the damage; it does not target it. Raising it drains the pool faster; lowering it turns more honest users away.",
+    "_sizing": "2,000 claims a day at the opening 10 GIG rate. Set it from how many real people you expect per day, not from how fast you want the pool gone."
+  },
+
+  "cooldown": {
+    "addressSeconds": 86400,
+    "ipSeconds": 300,
+    "_addressNote": "Per recipient address. 24 hours rather than the 1 hour originally specified: with an early-adopter audience the goal is one claim per PERSON, and an hourly tap multiplies a farmer's throughput by 24 for no benefit to someone claiming once.",
+    "_ipNote": "Per client source, hashed not stored. DELIBERATELY SHORT — 5 minutes, not 24 hours. Most people in the Philippines reach the internet through carrier-grade NAT on mobile, where thousands of subscribers share one address; a day-long per-IP lock would have handed the faucet to whoever claimed first on each carrier and turned everyone else away. It is a speed bump against scripting, nothing more. The daily cap is what actually bounds a farmer, because rented IP addresses defeat any per-IP rule.",
+    "_ifNotBehindNat": "On a network where one address really is one person, raising this to 86400 makes farming meaningfully harder. Do not do it for a public, mobile-heavy audience."
+  },
+
+  "pow": {
+    "enabled": true,
+    "difficultyBits": 19,
+    "challengeTtlSeconds": 300,
+    "_note": "Browser must find a nonce whose SHA-256 has this many leading zero bits before a claim is accepted. No third party, no accounts, no captcha vendor, no personal data.",
+    "_whyNotHigher": "MEASURED on this project's own implementation: 20 bits costs a mid-range phone ~5.1s and an attacker with native code ~1.7s; 22 bits costs the phone ~20.5s. Difficulty is therefore mostly a tax on ordinary users, and an attacker using batched or GPU hashing pays even less than the ratio suggests. 19 bits is ~2.6s on a phone — enough to stop casual scripting, honest about not being the real defence. The daily cap is.",
+    "_tuning": "Each bit doubles the work. Re-measure on a real phone before raising it."
+  },
+
+  "hotWallet": {
+    "lowBalanceWarnGig": "5000",
+    "reserveGig": "1",
+    "_reserveNote": "Never spend the last GIG: gas for the send itself must come from the same balance, and a faucet that cannot pay its own gas fails every claim with a confusing error.",
+    "_keyNote": "The signing key comes from FAUCET_PRIVATE_KEY in the environment, never from this file and never from git. On the devnet it defaults to the PUBLISHED Anvil #1 key, which is safe there and refused everywhere else (src/config.ts).",
+    "_topUpNote": "The hot wallet should hold a WORKING FLOAT, not the pool. It is an internet-facing key on a web server. Fund it with a few thousand GIG and top it up; do not park 100,000 GIG behind it, and never 20,000,000."
+  },
+
+  "server": {
+    "port": 4200,
+    "host": "127.0.0.1",
+    "recentClaimsShown": 10,
+    "_hostNote": "Loopback by default. Put Caddy in front for anything public, and set TRUSTED_PROXY_CIDR so the per-IP limit sees real clients instead of collapsing into one bucket."
+  }
+}

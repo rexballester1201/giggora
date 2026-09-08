@@ -51,7 +51,9 @@
     "stack": "docker compose --profile explorer up -d --build",
     "stack:down": "docker compose --profile explorer down",
     "stack:logs": "docker compose --profile explorer logs -f indexer api web",
-    "docs": "node scripts/build-docs.mjs"
+    "docs": "node scripts/build-docs.mjs",
+    "faucet": "node faucet/src/server.ts",
+    "faucet:test": "node scripts/test-faucet.ts"
   },
   "dependencies": {
     "@fastify/cors": "^11.3.0",

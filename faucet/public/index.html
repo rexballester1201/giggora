@@ -1,0 +1,115 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Giggora Faucet</title>
+<meta name="description" content="Free GIG for developers building on the Giggora testnet.">
+<link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+
+<header class="masthead">
+  <div class="brand">
+    <span class="mark" aria-hidden="true">G</span>
+    <h1>Giggora <span class="dim">Faucet</span></h1>
+  </div>
+  <p class="lede">
+    Free <abbr title="the native currency of the Giggora chain">GIG</abbr> for anyone trying
+    out Giggora &mdash; you do not need to be a developer. This is a
+    <strong>test network</strong>: the tokens have no monetary value, are not for sale, and
+    cannot be exchanged for anything.
+  </p>
+  <nav class="links">
+    <a id="explorer-link" href="#" rel="noopener">Explorer</a>
+    <a id="wallet-link" href="#" rel="noopener">Add network to wallet</a>
+  </nav>
+</header>
+
+<main>
+
+  <!-- Pool ------------------------------------------------------------------->
+  <section class="panel" aria-labelledby="pool-h">
+    <h2 id="pool-h" class="panel-h">Pool</h2>
+    <div class="pool">
+      <div class="pool-figure">
+        <p class="figure-label">Paying out now</p>
+        <p class="figure" id="payout">&mdash;</p>
+        <p class="figure-sub" id="payout-sub">per claim</p>
+      </div>
+      <div class="pool-bar-wrap">
+        <div class="pool-bar" role="img" aria-label="Proportion of the pool remaining">
+          <div class="pool-bar-fill" id="pool-fill"></div>
+        </div>
+        <dl class="pool-stats">
+          <div><dt>Remaining</dt><dd id="remaining">&mdash;</dd></div>
+          <div><dt>Left today</dt><dd id="daily">&mdash;</dd></div>
+          <div><dt>Claims</dt><dd id="claims">&mdash;</dd></div>
+        </dl>
+      </div>
+    </div>
+    <p class="note" id="pool-note"></p>
+  </section>
+
+  <!-- Claim ------------------------------------------------------------------>
+  <section class="panel" aria-labelledby="claim-h">
+    <h2 id="claim-h" class="panel-h">Request GIG</h2>
+    <form id="claim-form" class="claim" autocomplete="off">
+      <label class="sr-only" for="address">Your address</label>
+      <input
+        id="address" name="address" type="text" inputmode="text" spellcheck="false"
+        placeholder="0x&hellip; your wallet address" pattern="0x[0-9a-fA-F]{40}"
+        aria-describedby="claim-help">
+      <button id="claim-btn" type="submit">Request</button>
+    </form>
+    <p class="note" id="claim-help">
+      One request per address per day, and a shared daily limit for everyone. Paste the address
+      you want funded &mdash; nothing is signed, and <strong>the faucet will never ask for a
+      private key or a seed phrase</strong>. Anyone who does is stealing from you.
+    </p>
+    <div id="progress" class="progress" hidden>
+      <div class="progress-bar"><div class="progress-fill" id="progress-fill"></div></div>
+      <p class="note" id="progress-text"></p>
+    </div>
+    <div id="result" class="result" hidden></div>
+  </section>
+
+  <!-- Schedule --------------------------------------------------------------->
+  <section class="panel" aria-labelledby="sched-h">
+    <h2 id="sched-h" class="panel-h">The payout falls as the pool drains</h2>
+    <p class="note">
+      The rate tracks the fraction of the pool left, so the last GIG is as hard to get as the
+      first was easy. At half the pool remaining, the faucet pays half rate.
+    </p>
+    <div class="table-wrap">
+      <table id="schedule">
+        <thead><tr><th>While at least this much is left</th><th>Each claim pays</th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- Recent ----------------------------------------------------------------->
+  <section class="panel" aria-labelledby="recent-h">
+    <h2 id="recent-h" class="panel-h">Recent claims</h2>
+    <div class="table-wrap">
+      <table id="recent">
+        <thead><tr><th>Address</th><th>Amount</th><th>When</th><th>Transaction</th></tr></thead>
+        <tbody><tr><td colspan="4" class="empty">Loading&hellip;</td></tr></tbody>
+      </table>
+    </div>
+  </section>
+
+</main>
+
+<footer class="footer">
+  <p>
+    Giggora <strong>test network</strong> faucet. <strong>GIG has no monetary value</strong>, is
+    not offered for sale, and is not an investment &mdash; it exists so you can try the chain.
+    Faucet wallet <span class="mono" id="hot-wallet">&mdash;</span>.
+  </p>
+</footer>
+
+<script src="/app.js"></script>
+</body>
+</html>
