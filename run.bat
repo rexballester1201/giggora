@@ -71,10 +71,24 @@ goto :WAIT_DOCKER
 echo   Docker is ready.
 echo.
 
-REM --- 3. Has the chain ever been created? ----------------------------------
-if not exist "blockchain\genesis\genesis.json" (
-  echo   ERROR: No genesis found - this chain has not been created yet.
+REM --- 3. Has the chain ever been created ON THIS MACHINE? -------------------
+REM  Checks for the validator KEYS, not just the genesis. genesis.json is
+REM  committed, so a fresh clone has one - but blockchain\nodes\ is gitignored
+REM  (it holds private keys), so the clone has no keys for the validator set
+REM  that genesis encodes. Starting anyway gives four validators that are not
+REM  in the validator set: every container reports healthy and the chain
+REM  silently never produces a block. Checking the genesis alone walked
+REM  straight into that.
+if not exist "blockchain\nodes\validator-1\key" (
+  echo   ERROR: No validator keys - this chain has not been created on this
+  echo          computer yet.
   echo.
+  if exist "blockchain\genesis\genesis.json" (
+    echo   There IS a genesis.json, but it came with the repository and its
+    echo   validator set belongs to someone else's keys. Generating your own
+    echo   replaces it with yours.
+    echo.
+  )
   echo   Run this once, in Git Bash, then try again:
   echo     npm install
   echo     bash scripts/create-genesis.sh

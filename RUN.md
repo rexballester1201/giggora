@@ -131,9 +131,9 @@ docker compose logs -f validator-1
 
 ---
 
-## First time, or after `npm run clean`
+## First time — including straight after cloning
 
-Only needed if `blockchain/genesis/genesis.json` does not exist:
+Needed whenever `blockchain/nodes/validator-1/key` does not exist:
 
 ```bash
 npm install
@@ -146,6 +146,14 @@ bash scripts/create-genesis.sh
 ```bash
 npm run stack
 ```
+
+**A fresh clone always needs this.** The repository ships a `genesis.json`, but
+`blockchain/nodes/` is gitignored because it holds private keys — so the genesis
+you cloned encodes a validator set whose keys you do not have. Starting anyway
+gives four validators that are not in the validator set: every container reports
+healthy and the chain silently never produces a block. `run.bat` checks for the
+keys and stops you; `create-genesis.sh` generates your own and replaces the
+genesis with one that matches them.
 
 `create-genesis.sh` **refuses to run if validator keys already exist**, because
 regenerating a genesis would delete the running chain's identity and history.
