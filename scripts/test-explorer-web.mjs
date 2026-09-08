@@ -225,9 +225,10 @@ await check("Contract creation is not shown as the zero address", async () => {
   // Scoped to the To FIELD, not the whole page. The original assertion was
   // "the zero address appears nowhere on the page", which is wrong: a
   // constructor that mints emits Transfer(address(0), deployer, …), so the
-  // zero address legitimately appears in the LOGS of most token deployments —
-  // the 100-tx window. The bug this guards is the To field rendering 0x000…
-  // instead of the created contract, so inspect what follows the label.
+  // zero address legitimately appears in the LOGS of most token deployments.
+  // This check failed the moment such a deployment entered the 100-tx window.
+  // The bug it guards is the To field rendering 0x000… instead of the created
+  // contract, so inspect what follows the label.
   const i = t.indexOf("Contract Creation");
   assert(i !== -1, "did not label the transaction as a contract creation");
   const field = t.slice(i, i + 160);

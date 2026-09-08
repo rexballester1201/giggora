@@ -59,6 +59,8 @@ one is a defect regardless of what else the change achieves.
 blockchain/config/chain.config.json   SINGLE SOURCE OF TRUTH
 blockchain/genesis/                   generated genesis + qbftConfigFile
 blockchain/nodes/                     validator keys + chain data (GITIGNORED)
+contracts/src/                        GigToken, GigNFT, GigMultiToken
+contracts/test/                       Foundry tests (28)
 database/migrations/                  001-004, all idempotent
 indexer/src/                          crash-safe chain indexer
 explorer-api/src/                     Fastify API
@@ -255,7 +257,7 @@ Every number measured, not estimated.
 | Suite | Result |
 |---|---|
 | Network acceptance | 7/7 |
-| Contracts (Foundry) | 49/49 + 12/12 on-chain |
+| Contracts (Foundry) | 28/28 + 12/12 on-chain |
 | Indexer (over 1000 blocks, SIGKILL-tested) | 8/8 |
 | Explorer API | 51/51 |
 | API regressions | 12/12 |

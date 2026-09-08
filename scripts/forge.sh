@@ -21,6 +21,7 @@ cd "$(dirname "${BASH_SOURCE[0]}")/.."
 # PINNED BY DIGEST, not by tag. The header above promises reproducible bytecode
 # for contract verification; ":stable" is a MOVING tag and delivered whatever
 # Foundry had published that day, so the promise was false. This digest is the
+# image that produced the contract builds recorded in git history.
 #   upstream revision: b0a9dd9ceda36f63e2326ce530c10e6916f4b8a2
 # To upgrade: pull the new tag, run the full contract suite, and record the new
 # digest here in the same commit as any bytecode change.

@@ -347,7 +347,7 @@ td code { white-space:nowrap; }
 <h2 id="handover-what-you-are-inheriting">What you are inheriting</h2>
 <h3 id="handover-it-genuinely-works">It genuinely works</h3>
 <p>Not a prototype. The chain produces blocks, contracts deploy and execute, the indexer survives <code>kill -9</code>, the API serves every documented endpoint, the UI renders real chain data, and MetaMask connects. Test totals:</p>
-<div class="table-wrap"><table><thead><tr><th>Suite</th><th>Result</th></tr></thead><tbody><tr><td>Network acceptance</td><td>7/7</td></tr><tr><td>Contracts (Foundry unit)</td><td>49/49</td></tr><tr><td>Contracts (on-chain)</td><td>12/12</td></tr><tr><td>Indexer (1000+ blocks, SIGKILL)</td><td>8/8</td></tr><tr><td>Explorer API</td><td>51/51</td></tr><tr><td>API regressions</td><td>12/12</td></tr><tr><td>Explorer UI</td><td>28/28</td></tr><tr><td>Wallet compatibility</td><td>19/19</td></tr><tr><td>QBFT transitions</td><td>11/11</td></tr></tbody></table></div>
+<div class="table-wrap"><table><thead><tr><th>Suite</th><th>Result</th></tr></thead><tbody><tr><td>Network acceptance</td><td>7/7</td></tr><tr><td>Contracts (Foundry unit)</td><td>28/28</td></tr><tr><td>Contracts (on-chain)</td><td>12/12</td></tr><tr><td>Indexer (1000+ blocks, SIGKILL)</td><td>8/8</td></tr><tr><td>Explorer API</td><td>51/51</td></tr><tr><td>API regressions</td><td>12/12</td></tr><tr><td>Explorer UI</td><td>28/28</td></tr><tr><td>Wallet compatibility</td><td>19/19</td></tr><tr><td>QBFT transitions</td><td>11/11</td></tr></tbody></table></div>
 <p>Devnet at shelving time: <strong>block 2,143 · 22,578 transactions · 4 tokens</strong>.</p>
 <h3 id="handover-one-command-starts-everything">One command starts everything</h3>
 <pre class="code" data-lang="bash"><code>npm run stack</code></pre>
@@ -573,6 +573,8 @@ bash scripts/backup.sh --verify backups/&lt;timestamp&gt;</code></pre>
 <pre class="code"><code>blockchain/config/chain.config.json   SINGLE SOURCE OF TRUTH
 blockchain/genesis/                   generated genesis + qbftConfigFile
 blockchain/nodes/                     validator keys + chain data (GITIGNORED)
+contracts/src/                        GigToken, GigNFT, GigMultiToken
+contracts/test/                       Foundry tests (28)
 database/migrations/                  001-004, all idempotent
 indexer/src/                          crash-safe chain indexer
 explorer-api/src/                     Fastify API
@@ -658,7 +660,7 @@ npm run contracts:test # Foundry, needs the 622 MB image</code></pre>
 <hr class="rule">
 <h2 id="claude-7-verified-state">7. Verified state</h2>
 <p>Every number measured, not estimated.</p>
-<div class="table-wrap"><table><thead><tr><th>Suite</th><th>Result</th></tr></thead><tbody><tr><td>Network acceptance</td><td>7/7</td></tr><tr><td>Contracts (Foundry)</td><td>49/49 + 12/12 on-chain</td></tr><tr><td>Indexer (over 1000 blocks, SIGKILL-tested)</td><td>8/8</td></tr><tr><td>Explorer API</td><td>51/51</td></tr><tr><td>API regressions</td><td>12/12</td></tr><tr><td>Explorer UI</td><td>28/28</td></tr><tr><td>Wallet compatibility</td><td>19/19</td></tr><tr><td>QBFT transitions</td><td>11/11</td></tr></tbody></table></div>
+<div class="table-wrap"><table><thead><tr><th>Suite</th><th>Result</th></tr></thead><tbody><tr><td>Network acceptance</td><td>7/7</td></tr><tr><td>Contracts (Foundry)</td><td>28/28 + 12/12 on-chain</td></tr><tr><td>Indexer (over 1000 blocks, SIGKILL-tested)</td><td>8/8</td></tr><tr><td>Explorer API</td><td>51/51</td></tr><tr><td>API regressions</td><td>12/12</td></tr><tr><td>Explorer UI</td><td>28/28</td></tr><tr><td>Wallet compatibility</td><td>19/19</td></tr><tr><td>QBFT transitions</td><td>11/11</td></tr></tbody></table></div>
 <p><strong>Resource use per validator</strong> (<code>--profile=ENTERPRISE</code>):</p>
 <div class="table-wrap"><table><thead><tr><th></th><th>Idle</th><th>Under 10 tx/s</th></tr></thead><tbody><tr><td>RAM</td><td>284–359 MB</td><td>314–359 MB (barely moves)</td></tr><tr><td>CPU</td><td>2–4% of a core</td><td>20–57% of a core</td></tr></tbody></table></div>
 <p>RAM is not the constraint; CPU under sustained load is.</p>
@@ -666,6 +668,7 @@ npm run contracts:test # Foundry, needs the 622 MB image</code></pre>
 <p><strong>Quorum loss, induced for real</strong>: stopping 2 of 4 validators produced 0 blocks in 50s under load. Every container stayed <em>healthy</em> throughout — a process check sees nothing wrong. A ~3 minute outage cost ~<strong>7 minutes</strong> of downtime, because after quorum returned the validators sat in round-change deadlock (split across rounds 4/5/6) for ~4 more minutes. <strong>Round-change backoff is exponential, so recovery time grows with outage length.</strong></p>
 <hr class="rule">
 <h2 id="claude-8-deployed-on-the-devnet">8. Deployed on the devnet</h2>
+<div class="table-wrap"><table><thead><tr><th>Contract</th><th>Address</th><th>Standard</th></tr></thead><tbody><tr><td>GigToken (GTT)</td><td><code>0x5fbdb2315678afecb367f032d93f642f64180aa3</code></td><td>ERC-20</td></tr><tr><td>GigNFT (GIGNFT)</td><td><code>0xe7f1725e7734ce288f8367e1bb143e90bb3f0512</code></td><td>ERC-721</td></tr><tr><td>GigMultiToken (GIGMT)</td><td><code>0x9fe46736679d2d9a65f0992f2272de9f3c7fa6e0</code></td><td>ERC-1155</td></tr></tbody></table></div>
 <hr class="rule">
 <h2 id="claude-9-open-decisions-do-not-inherit-these-by-accident">9. Open decisions — do not inherit these by accident</h2>
 <ol>

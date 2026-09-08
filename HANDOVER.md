@@ -30,7 +30,7 @@ renders real chain data, and MetaMask connects. Test totals:
 | Suite | Result |
 |---|---|
 | Network acceptance | 7/7 |
-| Contracts (Foundry unit) | 49/49 |
+| Contracts (Foundry unit) | 28/28 |
 | Contracts (on-chain) | 12/12 |
 | Indexer (1000+ blocks, SIGKILL) | 8/8 |
 | Explorer API | 51/51 |
