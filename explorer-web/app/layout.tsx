@@ -5,10 +5,29 @@ import { SearchBar } from "@/components/SearchBar";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { NetworkStatus } from "@/components/NetworkStatus";
 
-export const metadata: Metadata = {
-  title: "Giggora Explorer",
+/**
+ * Branding, from blockchain/config/chain.config.json by way of .env and the
+ * compose build args. Nothing here is hardcoded so a fork changes the name,
+ * ticker and description in ONE file and every page follows.
+ *
+ * NEXT_PUBLIC_* is inlined at BUILD time (CLAUDE.md §4 item 19), so these are
+ * build args on the `web` service; changing them needs a rebuild, not a
+ * restart. The fallbacks are what an unconfigured checkout shows.
+ */
+export const CHAIN = {
+  name: process.env.NEXT_PUBLIC_CHAIN_NAME || "Giggora",
+  symbol: process.env.NEXT_PUBLIC_CHAIN_SYMBOL || "GIG",
+  tagline:
+    process.env.NEXT_PUBLIC_CHAIN_TAGLINE ||
+    "An independent, EVM-compatible Layer-1 blockchain.",
   description:
-    "Block explorer for Giggora — an independent, EVM-compatible Layer-1 blockchain.",
+    process.env.NEXT_PUBLIC_CHAIN_DESCRIPTION ||
+    "An independent, EVM-compatible Layer-1 blockchain.",
+};
+
+export const metadata: Metadata = {
+  title: `${CHAIN.name} Explorer`,
+  description: `Block explorer for ${CHAIN.name} — ${CHAIN.tagline}`,
 };
 
 /**
@@ -86,7 +105,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                   G
                 </span>
                 <span className="font-semibold">
-                  Giggora<span style={{ color: "var(--text-dim)" }}> Explorer</span>
+                  {CHAIN.name}
+                  <span style={{ color: "var(--text-dim)" }}> Explorer</span>
                 </span>
               </Link>
 
@@ -123,8 +143,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           style={{ color: "var(--text-dim)" }}
         >
           <p>
-            Giggora — an independent, EVM-compatible Layer-1 blockchain. All data on this site is
-            read from the chain by the Giggora indexer.
+            {CHAIN.name} — {CHAIN.tagline} All data on this site is read from the chain by the{" "}
+            {CHAIN.name} indexer.
           </p>
         </footer>
       </body>

@@ -387,6 +387,11 @@ services:
         NEXT_PUBLIC_EXPLORER_URL: http://localhost:3000
         NEXT_PUBLIC_NETWORK_LABEL: ${CHAIN_NAME} ${CHAIN_NETWORK}
         NEXT_PUBLIC_FAUCET_URL: http://localhost:4200
+        # Branding, from chain.config.json via .env. A fork edits one file.
+        NEXT_PUBLIC_CHAIN_NAME: ${CHAIN_NAME}
+        NEXT_PUBLIC_CHAIN_SYMBOL: ${CURRENCY_SYMBOL}
+        NEXT_PUBLIC_CHAIN_TAGLINE: ${CHAIN_TAGLINE}
+        NEXT_PUBLIC_CHAIN_DESCRIPTION: ${CHAIN_DESCRIPTION}
     image: giggora/explorer-web:latest
     container_name: giggora-web
     restart: unless-stopped
@@ -426,6 +431,10 @@ services:
       CURRENCY_NAME: ${CURRENCY_NAME}
       CURRENCY_SYMBOL: ${CURRENCY_SYMBOL}
       CURRENCY_DECIMALS: ${CURRENCY_DECIMALS}
+      # Branding for the portal. The faucet templates its own HTML from these,
+      # so a rebrand needs no rebuild of this image — just a restart.
+      CHAIN_TAGLINE: ${CHAIN_TAGLINE}
+      CHAIN_DESCRIPTION: ${CHAIN_DESCRIPTION}
       # 0.0.0.0 INSIDE the container; the published port below is loopback-only
       # on the host, so this is not a public bind.
       FAUCET_HOST: 0.0.0.0

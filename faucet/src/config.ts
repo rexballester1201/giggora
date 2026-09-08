@@ -111,6 +111,9 @@ export const chain = {
   symbol: env.CURRENCY_SYMBOL ?? "GIG",
   decimals: Number(env.CURRENCY_DECIMALS ?? 18),
   explorerUrl: env.FAUCET_EXPLORER_URL ?? "http://localhost:3000",
+  // Branding for the portal, from chain.config.json via gen-config.mjs.
+  tagline: env.CHAIN_TAGLINE ?? "An independent, EVM-compatible Layer-1 blockchain.",
+  description: env.CHAIN_DESCRIPTION ?? "",
 };
 if (!Number.isInteger(chain.id) || chain.id <= 0) {
   die("CHAIN_ID is not set. Run `node scripts/gen-config.mjs` or set it in the environment.");

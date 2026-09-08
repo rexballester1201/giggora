@@ -246,6 +246,13 @@ const envLines = [
   `BESU_IMAGE=${cfg.docker.besuImage}`,
   "",
   `CHAIN_NAME=${cfg.chain.name}`,
+  // Branding, so every service and page renders the SAME name and blurb rather
+  // than each hardcoding its own copy. A fork changes these once, here.
+  `CHAIN_SLUG=${cfg.chain.slug ?? cfg.chain.name.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`,
+  `CHAIN_TAGLINE=${cfg.chain.tagline ?? ""}`,
+  // split/join rather than a regex: the description is free text and a stray
+  // newline inside it must not be able to break this file.
+  `CHAIN_DESCRIPTION=${(cfg.chain.description ?? "").split(/\s+/).join(" ").trim()}`,
   `CHAIN_NETWORK=${netName}`,
   `CHAIN_ID=${net.chainId}`,
   `NETWORK_ID=${net.networkId}`,

@@ -92,6 +92,21 @@ function normalizeAddress(input: string): { ok: true; address: string } | { ok: 
   return { ok: true, address: input.toLowerCase() };
 }
 
+/**
+ * Escape a config value before it is substituted into the portal's HTML.
+ *
+ * chain.config.json is trusted, but a template that inserts unescaped text into
+ * markup is a cross-site-scripting hole waiting for the day somebody pastes a
+ * description containing an angle bracket. Escaping costs nothing.
+ */
+function esc(v: string): string {
+  return String(v ?? "")
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;");
+}
+
 const TYPES: Record<string, string> = {
   ".html": "text/html; charset=utf-8",
   ".js": "text/javascript; charset=utf-8",
@@ -322,6 +337,30 @@ export async function build() {
     if (!target.startsWith(PUBLIC_DIR) || !existsSync(target)) {
       return reply.status(404).type("text/plain").send("Not found");
     }
+    // HTML is templated so the portal carries the chain's OWN name, ticker and
+    // description rather than a hardcoded one. A fork edits
+    // blockchain/config/chain.config.json and this page follows, with no build
+    // step — the page is plain HTML and the substitution happens on the way out.
+    if (extname(target) === ".html") {
+      const html = (await readFile(target, "utf8"))
+        .replaceAll("{{CHAIN_NAME}}", esc(chain.name))
+        .replaceAll("{{CHAIN_INITIAL}}", esc(chain.name.slice(0, 1).toUpperCase()))
+        .replaceAll("{{CHAIN_SYMBOL}}", esc(chain.symbol))
+        .replaceAll("{{CHAIN_TAGLINE}}", esc(chain.tagline))
+        .replaceAll("{{CHAIN_DESCRIPTION}}", esc(chain.description));
+      return reply
+        .type(TYPES[".html"])
+        .header("cache-control", "no-store")
+        .header("x-content-type-options", "nosniff")
+        .header("referrer-policy", "strict-origin-when-cross-origin")
+        .header("x-frame-options", "DENY")
+        .header(
+          "content-security-policy",
+          "default-src 'none'; script-src 'self'; style-src 'self'; connect-src 'self'; img-src 'self' data:; base-uri 'none'; form-action 'none'"
+        )
+        .send(html);
+    }
+
     return reply
       .type(TYPES[extname(target)] ?? "application/octet-stream")
       .header("cache-control", "no-store")

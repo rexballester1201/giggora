@@ -56,7 +56,8 @@
     "faucet:test": "node scripts/test-faucet.ts",
     "stack:stop": "docker compose --profile explorer stop",
     "stack:start": "docker compose --profile explorer start",
-    "stack:status": "docker compose --profile explorer ps"
+    "stack:status": "docker compose --profile explorer ps",
+    "rebrand": "node scripts/rebrand.mjs"
   },
   "dependencies": {
     "@fastify/cors": "^11.3.0",

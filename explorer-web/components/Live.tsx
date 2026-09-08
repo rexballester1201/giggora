@@ -122,7 +122,7 @@ export function LiveTransactions() {
             </div>
           </div>
           <div className="shrink-0 text-right text-xs tabular-nums">
-            {formatUnits(t.value, 18, 4)} GIG
+            {formatUnits(t.value, 18, 4)} {process.env.NEXT_PUBLIC_CHAIN_SYMBOL || "GIG"}
           </div>
         </li>
       ))}

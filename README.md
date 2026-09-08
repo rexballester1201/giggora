@@ -1,30 +1,73 @@
 # Giggora
 
 An independent, EVM-compatible Layer-1 blockchain with its own native currency (**GIG**),
-validator network, and block explorer.
+validator network, block explorer and faucet. A complete, working chain you can run on one
+machine in about forty seconds — and rename into your own.
 
-Giggora is a general-purpose, fast, low-cost chain for digital assets, smart contracts, and
-decentralized applications. Developers deploy Ethereum-compatible contracts and tokens without
-depending on Ethereum, BSC, or Polygon.
+```bash
+npm run stack          # or double-click run.bat on Windows
+```
 
 | | |
 |---|---|
-| Consensus | QBFT (Byzantine fault tolerant, immediate finality) |
+| Consensus | QBFT (Byzantine fault tolerant, immediate finality, no reorgs) |
 | Client | [Hyperledger Besu](https://github.com/hyperledger/besu) 26.8.1 |
-| Block time | 2 seconds |
+| Block time | 2 seconds under load, 300s idle |
 | Native currency | GIG (18 decimals) |
 | Total supply | 1,000,000,000 GIG |
 | Devnet chain ID | 4043 |
+| Licence | [MIT](LICENSE) |
 
-> **Status: all 8 phases COMPLETE.** Chain verified (7/7), contracts deployed (28/28 unit +
-> 12/12 on-chain), indexer crash-tested over 1000 blocks (8/8), explorer API (51/51 + 12/12
-> regressions), explorer UI (28/28), wallet compatibility (19/19), and production deployment
-> topology, monitoring, backups and runbooks.
->
-> The devnet is real and running. **Mainnet is not launched** and should not be until the
-> open items in [docs/deployment.md](docs/deployment.md) are settled — 7 validators on
-> separate hosts, a real key ceremony, and the fee-market decision.
-> See [docs/architecture.md](docs/architecture.md) for the full plan.
+---
+
+## Read this before anything else
+
+**This repository was "vibe coded".** It was built by an AI agent (Claude Code) working from
+a written brief, across a single extended session. Every line of it — the consensus config,
+the indexer, the API, the websites, the tests and this sentence — was written that way. The
+brief that started it is in the git history.
+
+That is a statement of fact, not a disclaimer, and it cuts both ways:
+
+- **What it means in practice.** The chain genuinely runs. Failure modes were *induced* rather
+  than reasoned about: quorum loss was tested by killing validators under load, crash recovery
+  by `SIGKILL`-ing the indexer mid-write, the faucet's accounting by draining it. A later
+  adversarial security audit found and fixed 22 confirmed defects, several of them real
+  (a genesis generator that would have funded a public network with keys from a tutorial;
+  an indexer heartbeat that permanently skipped block 0). The commit messages record what was
+  tried and what was wrong, because that is where the reasoning lives.
+- **What it does not mean.** It has not been reviewed by an independent engineer. It has never
+  run anywhere but one desktop. **No third party has audited the contracts or the consensus
+  configuration.** Treat it as a well-tested starting point, not as production infrastructure.
+
+**Nothing here is launched.** The devnet is real and running. **Mainnet (chain ID 4041) has
+never been started**, GIG has no monetary value, none of it is for sale, and the faucet hands
+out valueless test tokens. Before any of that changes, read
+[HANDOVER.md](HANDOVER.md) — three decisions are open and one of them is legal.
+
+---
+
+## Make it your own
+
+The chain's identity lives in **one file**: `blockchain/config/chain.config.json`. Name,
+ticker, description, chain IDs, supply, block time. Everything else is generated from it, and
+the websites read it at build time — nothing is hardcoded.
+
+```bash
+node scripts/rebrand.mjs --list --name "Aurora" --symbol AUR
+```
+
+```bash
+node scripts/rebrand.mjs --name "Aurora" --symbol AUR --description "One paragraph about your chain."
+```
+
+Then `bash scripts/create-genesis.sh --force` for a fresh genesis and your own validator keys,
+and `npm run stack`. The script refuses to run on a dirty working tree, so `git diff` shows
+exactly what changed and `git checkout .` undoes it.
+
+**Pick your own chain IDs** (`--chain-id`, `--testnet-id`, `--devnet-id`). They are meant to be
+globally unique — check [chainlist.org](https://chainlist.org) first. A collision means a
+transaction signed for one chain is replayable on the other.
 
 ---
 

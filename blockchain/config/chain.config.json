@@ -3,6 +3,11 @@
   "_WHY_JSON_NOT_YAML": "The brief suggested chain.yaml. JSON is used instead so the generator needs zero npm dependencies and can run before any install step — a YAML parser would mean `npm install` must succeed before the chain can boot. Field documentation lives in docs/configuration.md.",
   "chain": {
     "name": "Giggora",
+    "slug": "giggora",
+    "_slugNote": "Lowercase, no spaces. Used for container names, the compose project and the database. Change it with the rest of the branding; scripts/rebrand.mjs does.",
+    "tagline": "An independent, EVM-compatible Layer-1 blockchain.",
+    "description": "Giggora is a general-purpose, fast, low-cost EVM-compatible Layer-1 blockchain. It provides an independent platform for digital assets, smart contracts and decentralized applications, so developers can deploy Ethereum-compatible applications and tokens without depending on Ethereum, BSC or Polygon. It has its own native currency for transaction fees, its own validator network, and its own block explorer.",
+    "_descriptionNote": "ONE PARAGRAPH, shown on the explorer, the faucet and in the wallet listing. This and name/slug/currency are the only things a fork has to change - run: node scripts/rebrand.mjs",
     "currency": {
       "name": "Giggora",
       "symbol": "GIG",

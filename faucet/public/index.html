@@ -3,20 +3,20 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Giggora Faucet</title>
-<meta name="description" content="Free GIG for developers building on the Giggora testnet.">
+<title>{{CHAIN_NAME}} Faucet</title>
+<meta name="description" content="Free {{CHAIN_SYMBOL}} for anyone trying the {{CHAIN_NAME}} test network.">
 <link rel="stylesheet" href="/styles.css">
 </head>
 <body>
 
 <header class="masthead">
   <div class="brand">
-    <span class="mark" aria-hidden="true">G</span>
-    <h1>Giggora <span class="dim">Faucet</span></h1>
+    <span class="mark" aria-hidden="true">{{CHAIN_INITIAL}}</span>
+    <h1>{{CHAIN_NAME}} <span class="dim">Faucet</span></h1>
   </div>
   <p class="lede">
-    Free <abbr title="the native currency of the Giggora chain">GIG</abbr> for anyone trying
-    out Giggora &mdash; you do not need to be a developer. This is a
+    Free <abbr title="the native currency of the {{CHAIN_NAME}} chain">{{CHAIN_SYMBOL}}</abbr> for
+    anyone trying out {{CHAIN_NAME}} &mdash; you do not need to be a developer. This is a
     <strong>test network</strong>: the tokens have no monetary value, are not for sale, and
     cannot be exchanged for anything.
   </p>
@@ -53,7 +53,7 @@
 
   <!-- Claim ------------------------------------------------------------------>
   <section class="panel" aria-labelledby="claim-h">
-    <h2 id="claim-h" class="panel-h">Request GIG</h2>
+    <h2 id="claim-h" class="panel-h">Request {{CHAIN_SYMBOL}}</h2>
     <form id="claim-form" class="claim" autocomplete="off">
       <label class="sr-only" for="address">Your address</label>
       <input
@@ -78,7 +78,7 @@
   <section class="panel" aria-labelledby="sched-h">
     <h2 id="sched-h" class="panel-h">The payout falls as the pool drains</h2>
     <p class="note">
-      The rate tracks the fraction of the pool left, so the last GIG is as hard to get as the
+      The rate tracks the fraction of the pool left, so the last {{CHAIN_SYMBOL}} is as hard to get as the
       first was easy. At half the pool remaining, the faucet pays half rate.
     </p>
     <div class="table-wrap">
@@ -104,7 +104,8 @@
 
 <footer class="footer">
   <p>
-    Giggora <strong>test network</strong> faucet. <strong>GIG has no monetary value</strong>, is
+    {{CHAIN_NAME}} <strong>test network</strong> faucet. <strong>{{CHAIN_SYMBOL}} has no monetary
+    value</strong>, is
     not offered for sale, and is not an investment &mdash; it exists so you can try the chain.
     Faucet wallet <span class="mono" id="hot-wallet">&mdash;</span>.
   </p>
