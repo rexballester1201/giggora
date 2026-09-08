@@ -34,6 +34,7 @@ This project is complete and paused, not abandoned. Before touching anything:
 
 | Read | For |
 |---|---|
+| **[RUN.md](RUN.md)** | **Starting, pausing and stopping it** — the day-to-day commands |
 | **[HANDOVER.md](HANDOVER.md)** | What state this is in, what is unfinished, the decisions still open |
 | **[DEPLOY.md](DEPLOY.md)** | Running it — local, measured hardware specs, production, incidents |
 | **[CLAUDE.md](CLAUDE.md)** | Architecture, conventions, and the 16 gotchas that will otherwise cost you a day |

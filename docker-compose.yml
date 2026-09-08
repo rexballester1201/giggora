@@ -282,6 +282,37 @@ services:
   # workflow uses, so run one or the other, never both.
   # ===========================================================================
 
+  # Migrations, as a one-shot, so `npm run stack` is genuinely one command.
+  # Every migration is idempotent (see scripts/db-migrate.sh), so running this
+  # on every start is safe and means the indexer can never come up against a
+  # schema older than its code.
+  migrate:
+    profiles: ["explorer"]
+    image: ${POSTGRES_IMAGE}
+    container_name: giggora-migrate
+    restart: "no"
+    depends_on:
+      postgres: { condition: service_healthy }
+    environment:
+      PGHOST: giggora-postgres
+      PGUSER: ${POSTGRES_USER}
+      PGDATABASE: ${POSTGRES_DB}
+      PGPASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - ./database/migrations:/migrations:ro
+    networks: [giggora]
+    entrypoint: ["/bin/sh", "-c"]
+    command: >
+      'set -e; for f in /migrations/*.sql; do
+         echo "applying $$f";
+         psql -v ON_ERROR_STOP=1 -q -f "$$f";
+       done; echo "migrations ok"'
+    logging: &explorer-logging
+      driver: json-file
+      options:
+        max-size: "20m"
+        max-file: "3"
+
   indexer:
     profiles: ["explorer"]
     build:
@@ -293,6 +324,7 @@ services:
     depends_on:
       postgres: { condition: service_healthy }
       rpc:      { condition: service_healthy }
+      migrate:  { condition: service_completed_successfully }
     environment:
       # Container-internal addresses. The host .env points at localhost, which
       # is this container, not the database.
@@ -354,6 +386,7 @@ services:
         NEXT_PUBLIC_RPC_URL: ${RPC_URL}
         NEXT_PUBLIC_EXPLORER_URL: http://localhost:3000
         NEXT_PUBLIC_NETWORK_LABEL: ${CHAIN_NAME} ${CHAIN_NETWORK}
+        NEXT_PUBLIC_FAUCET_URL: http://localhost:4200
     image: giggora/explorer-web:latest
     container_name: giggora-web
     restart: unless-stopped
@@ -366,6 +399,45 @@ services:
       NODE_ENV: production
     ports:
       - "127.0.0.1:3000:3000"
+    networks: [giggora]
+    logging: *explorer-logging
+
+  # --------------------------------------------------------------------------
+  # Faucet. Same image as the indexer and API, different command.
+  #
+  # On the devnet it signs with the PUBLISHED Anvil #1 key and refuses to start
+  # unless the NODE reports chain 4043 — see faucet/src/config.ts. To run it
+  # anywhere else, set FAUCET_PRIVATE_KEY and it will use that instead.
+  # --------------------------------------------------------------------------
+  faucet:
+    profiles: ["explorer"]
+    image: giggora/explorer-node:latest
+    container_name: giggora-faucet
+    restart: unless-stopped
+    depends_on:
+      postgres: { condition: service_healthy }
+      rpc:      { condition: service_healthy }
+      migrate:  { condition: service_completed_successfully }
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@giggora-postgres:5432/${POSTGRES_DB}
+      RPC_URL: http://giggora-rpc:8545
+      CHAIN_ID: ${CHAIN_ID}
+      CHAIN_NAME: ${CHAIN_NAME}
+      CURRENCY_NAME: ${CURRENCY_NAME}
+      CURRENCY_SYMBOL: ${CURRENCY_SYMBOL}
+      CURRENCY_DECIMALS: ${CURRENCY_DECIMALS}
+      # 0.0.0.0 INSIDE the container; the published port below is loopback-only
+      # on the host, so this is not a public bind.
+      FAUCET_HOST: 0.0.0.0
+      FAUCET_PORT: "4200"
+      # Where the portal's "View the transaction" links point — a BROWSER
+      # address, so localhost rather than the container name.
+      FAUCET_EXPLORER_URL: http://localhost:3000
+      FAUCET_PRIVATE_KEY: ${FAUCET_PRIVATE_KEY:-}
+      FAUCET_IP_SALT: ${FAUCET_IP_SALT:-giggora-faucet-devnet-salt}
+    command: ["node", "faucet/src/server.ts"]
+    ports:
+      - "127.0.0.1:4200:4200"
     networks: [giggora]
     logging: *explorer-logging
 

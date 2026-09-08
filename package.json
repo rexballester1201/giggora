@@ -53,7 +53,10 @@
     "stack:logs": "docker compose --profile explorer logs -f indexer api web",
     "docs": "node scripts/build-docs.mjs",
     "faucet": "node faucet/src/server.ts",
-    "faucet:test": "node scripts/test-faucet.ts"
+    "faucet:test": "node scripts/test-faucet.ts",
+    "stack:stop": "docker compose --profile explorer stop",
+    "stack:start": "docker compose --profile explorer start",
+    "stack:status": "docker compose --profile explorer ps"
   },
   "dependencies": {
     "@fastify/cors": "^11.3.0",

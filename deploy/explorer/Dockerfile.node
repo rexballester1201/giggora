@@ -17,6 +17,7 @@ RUN npm ci --omit=dev
 
 COPY indexer ./indexer
 COPY explorer-api ./explorer-api
+COPY faucet ./faucet
 COPY database ./database
 
 # Never run as root. The node image ships a `node` user for exactly this.

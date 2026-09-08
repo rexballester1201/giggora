@@ -4,10 +4,15 @@ A portal that hands out GIG on the Giggora **test network** — for anyone tryin
 the chain, not only developers. The tokens have no monetary value and are not
 for sale.
 
+It starts with everything else:
+
 ```bash
-npm run faucet        # http://127.0.0.1:4200
-npm run faucet:test   # 21 tests against a live faucet and a live chain
+npm run stack
 ```
+
+Portal on http://localhost:4200. To run it alone on the host instead (for
+editing), `npm run faucet` — but not both at once, they bind the same port.
+Tests: `npm run faucet:test`, 24 of them against a live faucet and a live chain.
 
 ---
 
@@ -20,9 +25,14 @@ Measured on this chain, at its 1 gwei floor:
 | **1 GIG** | 1,006 | 19,230 | 47,619 |
 | **10 GIG** | **10,065** | 192,307 | 476,190 |
 
-A developer needs **one claim, ever**. That number is the reason for every
-sizing decision below: the faucet's job is to remove a chicken-and-egg problem
-(you cannot call a contract without gas), not to distribute wealth.
+Worth holding onto when reading the sizing section. For a developer this is the
+whole story — one claim removes the chicken-and-egg problem (you cannot call a
+contract without gas) and they never need another. For an early adopter simply
+holding or moving GIG, 10 GIG is 476,190 transfers: also far more than one
+person will use.
+
+The pool is therefore sized by **how many people you want to reach**, not by
+what each of them needs.
 
 ---
 
@@ -85,26 +95,27 @@ expected demand, top it up, and a breach costs the float rather than the pool.
 The faucet reports its real on-chain balance on `/api/status` and refuses
 claims it cannot pay rather than queuing them.
 
-### What 20,000,000 GIG is, in developer terms
+### What 20,000,000 GIG reaches
 
 | | |
 |---|---|
 | Share of total supply | 2% |
 | Claims at the opening 10 GIG rate | 2,000,000 |
-| Contract deployments funded | ~20 billion |
-| Hours for one address to drain it alone | ~5.9 million (669 years) |
+| People reached, if each claims once | up to 2,000,000 |
+| Days for one address to drain it alone | ~244,000 (669 years) |
 
-Worth knowing rather than arguing: at 10,065 deployments per claim, the binding
-constraint on this pool is not developer demand — it is how fast it can be
-farmed. That is what the three limits below are for, and why the hot-wallet
-float above matters more than the ceiling.
+The binding constraint on a pool this size is not how many people want GIG — it
+is **how fast it can be farmed**, because addresses are free and IP addresses
+are cheap. That is what the four limits below are for, and why the hot-wallet
+float above matters more than the ceiling does.
 
-There is also a framing consequence. A gas tap with valueless tokens is plainly
-a developer utility; a decreasing-rate distribution of 2% of supply reads more
-like a token distribution event, and under SEC MC No. 4 & 5, s. 2025 the
-distribution of crypto-assets in the Philippines is regulated while a testnet
-utility is not. The portal says GIG has no value and is not for sale, in as many
-words, for that reason.
+There is also a framing consequence worth knowing. A gas tap with valueless
+tokens is plainly a developer utility; a decreasing-rate distribution of 2% of
+supply to the public reads more like a token distribution event, and under SEC
+MC No. 4 & 5, s. 2025 the distribution of crypto-assets in the Philippines is
+regulated while a testnet utility is not. This runs on the **test network** with
+tokens that have no value, which the portal states plainly, and that is the
+basis on which it is safe as built.
 
 To halve it, set `pool.totalGig` to `"10000000"`; the curve rescales itself
 (10 GIG at 10M left, 5 at 5M).
