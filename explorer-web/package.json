@@ -1,6 +1,7 @@
 {
   "name": "giggora-explorer-web",
   "version": "0.1.0",
+  "license": "MIT",
   "private": true,
   "description": "Giggora block explorer UI",
   "scripts": {

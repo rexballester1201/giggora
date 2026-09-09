@@ -1,6 +1,7 @@
 {
   "name": "giggora-dapp",
   "version": "0.1.0",
+  "license": "MIT",
   "private": true,
   "description": "Giggora sample DApp — dependency-free EIP-1193 demo",
   "scripts": { "start": "node serve.mjs" }

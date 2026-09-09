@@ -1,6 +1,7 @@
 {
   "name": "giggora",
   "version": "0.1.0",
+  "license": "MIT",
   "private": true,
   "type": "module",
   "description": "Giggora — an independent, EVM-compatible Layer-1 blockchain and block explorer.",

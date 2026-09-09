@@ -566,4 +566,7 @@ Full detail in [docs/architecture.md](docs/architecture.md) §11.
 
 ## Licence
 
-Not yet chosen.
+[MIT](LICENSE). Copyright (c) 2026 Giggora contributors.
+
+Fork it, rename it and run your own chain -- nothing here asks permission.
+`npm run rebrand` renames the network everywhere in one pass.

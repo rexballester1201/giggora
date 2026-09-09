@@ -1,6 +1,7 @@
 {
   "name": "giggora-contracts",
   "version": "0.1.0",
+  "license": "MIT",
   "private": true,
   "description": "Sample ERC-20 / ERC-721 / ERC-1155 contracts for the Giggora chain.",
   "dependencies": {
