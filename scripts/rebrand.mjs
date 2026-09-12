@@ -119,6 +119,9 @@ const SKIP_FILES = new Set([
   "package-lock.json",
   // Generated from the Markdown; regenerate with `npm run docs` afterwards.
   "giggora-dossier.html",
+  // MIT requires the original copyright notice in every copy. A fork adds its
+  // own line; it must not rewrite the one it inherited.
+  "LICENSE",
 ]);
 const TEXT = new Set([
   ".md", ".html", ".css", ".js", ".mjs", ".ts", ".tsx", ".json", ".sol",
@@ -137,7 +140,10 @@ try {
 files = files.filter((f) => {
   if (SKIP_DIRS.test(f)) return false;
   if (SKIP_FILES.has(f.split("/").pop())) return false;
-  if (!TEXT.has(extname(f))) return false;
+  // Dockerfile.node and Dockerfile.web: the "extension" is the variant name, so
+  // an extension list alone skipped both and a fork kept the old name in their
+  // headers.
+  if (!TEXT.has(extname(f)) && !f.split("/").pop().startsWith("Dockerfile")) return false;
   try {
     return statSync(join(ROOT, f)).size < 2_000_000;
   } catch {
@@ -163,6 +169,7 @@ const rules = [
 let changedFiles = 0;
 let changedLines = 0;
 const touched = [];
+const skippedBinary = [];
 
 for (const f of files) {
   const p = join(ROOT, f);
@@ -175,7 +182,12 @@ for (const f of files) {
   // Skip anything that looks binary. Written as an escape, not a literal NUL:
   // a raw control character in source is invisible in a diff and makes grep
   // treat this whole file as binary.
-  if (s.indexOf(String.fromCharCode(0)) !== -1) continue;
+  if (s.indexOf(String.fromCharCode(0)) !== -1) {
+    // Never silently: a skipped file keeps the old name and nothing else would
+    // say so. Two of this repository's own files did exactly that.
+    skippedBinary.push(f);
+    continue;
+  }
 
   let out = s;
   for (const [re, rep] of rules) out = out.replace(re, rep);
@@ -225,6 +237,11 @@ console.log(`
 for (const t of touched.slice(0, 15)) console.log(`    ${String(t.n).padStart(4)}  ${t.f}`);
 if (touched.length > 15) console.log(`    ... and ${touched.length - 15} more files`);
 console.log(`\n  ${changedLines} line(s) in ${changedFiles} file(s).`);
+if (skippedBinary.length) {
+  console.log(`\n  WARNING: ${skippedBinary.length} file(s) contain a NUL byte, look binary, and were NOT renamed:`);
+  for (const f of skippedBinary) console.log(`    ${f}`);
+  console.log(`  Rename them by hand, or write each NUL as an escape sequence so this script can read them.`);
+}
 
 if (listOnly) {
   console.log(`\n  Nothing was written. Re-run without --list to apply.\n`);
