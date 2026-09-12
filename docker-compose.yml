@@ -435,6 +435,9 @@ services:
       # so a rebrand needs no rebuild of this image — just a restart.
       CHAIN_TAGLINE: ${CHAIN_TAGLINE}
       CHAIN_DESCRIPTION: ${CHAIN_DESCRIPTION}
+      # The chain the PUBLISHED devnet key may sign for (faucet/src/config.ts),
+      # from chain.config.json via .env: this container has no checkout to read.
+      DEVNET_CHAIN_ID: ${DEVNET_CHAIN_ID}
       # 0.0.0.0 INSIDE the container; the published port below is loopback-only
       # on the host, so this is not a public bind.
       FAUCET_HOST: 0.0.0.0

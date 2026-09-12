@@ -17,7 +17,30 @@
  * key, not for convenience.
  */
 
-export const DEVNET_CHAIN_ID = 4043;
+import { readFileSync } from "node:fs";
+import { dirname, join, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
+
+const CONFIG = join(
+  resolve(dirname(fileURLToPath(import.meta.url)), "..", ".."),
+  "blockchain",
+  "config",
+  "chain.config.json"
+);
+
+/**
+ * The devnet's chain id, read from chain.config.json.
+ *
+ * It used to be a hardcoded number, which the rebrand script cannot see. A fork
+ * then refused its own devnet -- or, with its parent chain running on the same
+ * machine and a script pointed at the parent's RPC port, accepted the parent's
+ * chain and let the published key sign there. Reading the config keeps the
+ * guard pointed at this chain and no other.
+ */
+export const DEVNET_CHAIN_ID = Number(JSON.parse(readFileSync(CONFIG, "utf8")).networks?.devnet?.chainId);
+if (!Number.isInteger(DEVNET_CHAIN_ID) || DEVNET_CHAIN_ID <= 0) {
+  throw new Error(`networks.devnet.chainId in ${CONFIG} is not a positive integer`);
+}
 
 /**
  * @param {{ getChainId: () => Promise<number | bigint> }} pub  a viem public client

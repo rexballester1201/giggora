@@ -256,6 +256,10 @@ const envLines = [
   `CHAIN_NETWORK=${netName}`,
   `CHAIN_ID=${net.chainId}`,
   `NETWORK_ID=${net.networkId}`,
+  // The chain the published devnet keys may sign for. scripts/lib/devnet-guard.mjs
+  // reads chain.config.json directly; this copy is for the faucet, which runs in
+  // a container with no checkout to read.
+  `DEVNET_CHAIN_ID=${cfg.networks.devnet.chainId}`,
   `CURRENCY_NAME=${cfg.chain.currency.name}`,
   `CURRENCY_SYMBOL=${cfg.chain.currency.symbol}`,
   `CURRENCY_DECIMALS=${cfg.chain.currency.decimals}`,

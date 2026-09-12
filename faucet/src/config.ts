@@ -119,7 +119,15 @@ if (!Number.isInteger(chain.id) || chain.id <= 0) {
   die("CHAIN_ID is not set. Run `node scripts/gen-config.mjs` or set it in the environment.");
 }
 
-export const DEVNET_CHAIN_ID = 4043;
+// The chain the PUBLISHED devnet key may sign for. From chain.config.json via
+// .env (DEVNET_CHAIN_ID, written by gen-config.mjs), because a container has no
+// checkout to read the config from. It used to be a hardcoded number, which the
+// rebrand script cannot see. No fallback on purpose: a guard that guesses is not
+// a guard.
+export const DEVNET_CHAIN_ID = Number(env.DEVNET_CHAIN_ID);
+if (!Number.isInteger(DEVNET_CHAIN_ID) || DEVNET_CHAIN_ID <= 0) {
+  die("DEVNET_CHAIN_ID is not set. Run `node scripts/gen-config.mjs` or set it in the environment.");
+}
 
 /**
  * Anvil/Hardhat account #1. PUBLISHED — it is in this repository's README, in
