@@ -21,7 +21,11 @@
 #
 # Generated config comes from .env — run scripts/create-genesis.sh first.
 
-name: ${COMPOSE_PROJECT_NAME:-giggora}
+# Fixed, not ${COMPOSE_PROJECT_NAME}. Compose lets that variable override
+# `name:`, and a COMPOSE_PROJECT_NAME left in a shell - by another stack on this
+# machine, say - would point `down`, or `down -v`, at that stack instead. The
+# npm scripts and the .bat files pass -p giggora as well.
+name: giggora
 
 x-besu-base: &besu-base
   image: ${BESU_IMAGE}

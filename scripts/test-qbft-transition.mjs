@@ -83,9 +83,11 @@ const genesisHash = async () => (await rpc("eth_getBlockByNumber", ["0x0", false
 
 /** Stop then start ALL nodes. Not a rolling restart — see the header. */
 async function cycleAllNodes() {
-  sh("docker", ["compose", "stop", ...NODES]);
+  // -p pins the project: a COMPOSE_PROJECT_NAME left in the shell must never
+  // make this stop the nodes of another stack.
+  sh("docker", ["compose", "-p", "giggora", "stop", ...NODES]);
   await sleep(4000);
-  sh("docker", ["compose", "start", ...NODES]);
+  sh("docker", ["compose", "-p", "giggora", "start", ...NODES]);
   const deadline = Date.now() + 180_000;
   while (Date.now() < deadline) {
     try {

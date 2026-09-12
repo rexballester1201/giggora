@@ -246,8 +246,8 @@ ${Object.entries(changes).map(([k, v]) => `    ${k}: ${current[k] ?? "(unset)"} 
   nodes disagree about the block period, proposals fail timestamp validation and
   block production stalls until QBFT round-changes.
 
-    docker compose stop  validator-1 validator-2 validator-3 validator-4 rpc
-    docker compose start validator-1 validator-2 validator-3 validator-4 rpc
+    docker compose -p giggora stop  validator-1 validator-2 validator-3 validator-4 rpc
+    docker compose -p giggora start validator-1 validator-2 validator-3 validator-4 rpc
 
   Then verify:  node scripts/test-qbft-transition.mjs --expect ${target}
   Undo (before it lands): node scripts/schedule-transition.mjs --revert ${target}

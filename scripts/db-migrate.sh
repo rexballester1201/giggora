@@ -19,7 +19,7 @@ export MSYS2_ARG_CONV_EXCL='*'
 
 if ! docker ps --format '{{.Names}}' | grep -q '^giggora-postgres$'; then
   echo "  ERROR: giggora-postgres is not running. Start it with:" >&2
-  echo "    docker compose up -d postgres" >&2
+  echo "    docker compose -p giggora up -d postgres" >&2
   exit 1
 fi
 

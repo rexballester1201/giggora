@@ -6,7 +6,7 @@
 #     bash scripts/create-genesis.sh      (make genesis)
 #     bash scripts/start-network.sh       (make start)
 #     node scripts/verify-network.mjs     (make test)
-#     docker compose down                 (make stop)
+#     docker compose -p giggora down      (make stop)
 #
 # ...or use the npm equivalents: npm run genesis / start / stop / verify / clean
 
@@ -64,15 +64,15 @@ start:
 	bash scripts/start-network.sh
 
 stop:
-	docker compose down
+	docker compose -p giggora down
 
 restart: stop start
 
 logs:
-	docker compose logs -f
+	docker compose -p giggora logs -f
 
 status:
-	@docker compose ps
+	@docker compose -p giggora ps
 	@echo ""
 	@curl -s -X POST -H "Content-Type: application/json" \
 		--data '{"jsonrpc":"2.0","method":"eth_blockNumber","params":[],"id":1}' \
@@ -83,7 +83,7 @@ test:
 	node scripts/verify-network.mjs
 
 clean:
-	docker compose down -v
+	docker compose -p giggora down -v
 	rm -rf blockchain/nodes blockchain/genesis/networkFiles blockchain/genesis/genesis.json
 
 reset: clean genesis start
@@ -137,14 +137,14 @@ backup:
 	bash scripts/backup.sh
 
 # Whole stack: chain + indexer + API + explorer UI, in containers.
-# Behind the "explorer" profile so `docker compose up -d` stays chain-only —
+# Behind the "explorer" profile so `docker compose -p giggora up -d` stays chain-only —
 # the two explorer images cost ~800 MB and land in a virtual disk that never
 # shrinks, so they are opt-in.
 stack:
-	docker compose --profile explorer up -d --build
+	docker compose -p giggora --profile explorer up -d --build
 
 stack-down:
-	docker compose --profile explorer down
+	docker compose -p giggora --profile explorer down
 
 stack-logs:
-	docker compose --profile explorer logs -f indexer api web
+	docker compose -p giggora --profile explorer logs -f indexer api web

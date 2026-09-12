@@ -32,7 +32,7 @@ fi
 
 echo ""
 echo "  Starting ${CHAIN_NAME} ${CHAIN_NETWORK} (chain ID ${CHAIN_ID}) ..."
-docker compose up -d
+docker compose -p giggora up -d
 
 cat <<MSG
 
@@ -46,7 +46,7 @@ cat <<MSG
   Validators expose debug RPC on 127.0.0.1:8551-8554 (devnet only).
 
   Verify the network:   node scripts/verify-network.mjs
-  Follow logs:          docker compose logs -f
-  Stop:                 docker compose down
+  Follow logs:          docker compose -p giggora logs -f
+  Stop:                 docker compose -p giggora down
 
 MSG

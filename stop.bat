@@ -37,7 +37,7 @@ if errorlevel 1 (
 echo   Stopping all Giggora services...
 echo.
 
-docker compose --profile explorer down
+docker compose -p giggora --profile explorer down
 if errorlevel 1 (
   echo.
   echo   docker compose reported a problem. The output above says why.

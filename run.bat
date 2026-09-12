@@ -101,7 +101,9 @@ echo   ^(The first run builds two images and takes a few minutes. Later runs
 echo    are about 40 seconds.^)
 echo.
 
-docker compose --profile explorer up -d --build
+REM  -p pins the project, so a COMPOSE_PROJECT_NAME set in this shell can never
+REM  aim this at another stack.
+docker compose -p giggora --profile explorer up -d --build
 if errorlevel 1 (
   echo.
   echo   ERROR: docker compose failed. The output above says why.
