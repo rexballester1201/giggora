@@ -270,12 +270,25 @@ const chain = JSON.parse(
 );
 
 const rendered = DOCS.map((d) => {
-  const md = readFileSync(join(ROOT, d.file), "utf8");
+  // Git for Windows checks text out as CRLF by default (core.autocrlf=true), and
+  // render() assumes LF: `(.*)$` cannot match past a trailing \r, so a CRLF
+  // checkout recognised no headings and the table of contents came out empty.
+  const md = readFileSync(join(ROOT, d.file), "utf8").replace(/\r\n?/g, "\n");
   const title = (md.match(/^#\s+(.*)$/m) || [, d.label])[1];
   return { ...d, title, ...render(md, d.id) };
 });
 
 const BUILT = new Date().toISOString().slice(0, 10);
+
+// The shelving date is history, not the build date: a rebuild must not move
+// it. It comes from CLAUDE.md's status line, and the build stops if that line
+// is gone rather than print a date nobody wrote.
+const SHELVED = readFileSync(join(ROOT, "CLAUDE.md"), "utf8").match(
+  /\*\*Status: SHELVED (\d{4}-\d{2}-\d{2})\./
+)?.[1];
+if (!SHELVED) {
+  throw new Error('CLAUDE.md has no "**Status: SHELVED YYYY-MM-DD.**" line for the Shelved pill');
+}
 
 const nav = rendered
   .map(
@@ -313,7 +326,7 @@ const html = `<!doctype html>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Giggora Project Dossier</title>
-<meta name="description" content="Handover, deployment and reference documentation for the Giggora blockchain, shelved ${BUILT}.">
+<meta name="description" content="Handover, deployment and reference documentation for the Giggora blockchain, shelved ${SHELVED}.">
 <style>
 /* ---------------------------------------------------------------------------
    Palette inherited from explorer-web/app/globals.css — the chain already has a
@@ -556,7 +569,7 @@ td code { white-space:nowrap; }
     </p>
 
     <div class="status-line">
-      <span class="pill shelved">Shelved ${BUILT}</span>
+      <span class="pill shelved">Shelved ${SHELVED}</span>
       <span class="pill done">8 / 8 phases complete</span>
       <span class="built">Mainnet not launched</span>
     </div>
