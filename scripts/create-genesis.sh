@@ -50,8 +50,10 @@ echo "  ============================="
 # --- 1. config ---------------------------------------------------------------
 node scripts/gen-config.mjs
 
-# shellcheck disable=SC1091
-set -a; source "$ROOT/.env"; set +a
+# .env values may contain spaces, so it is loaded line by line, not sourced.
+# shellcheck source=lib/load-env.sh
+source "$ROOT/scripts/lib/load-env.sh"
+load_env_file "$ROOT/.env"
 
 # --- preflight ---------------------------------------------------------------
 if ! docker info >/dev/null 2>&1; then

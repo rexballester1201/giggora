@@ -9,8 +9,10 @@
 set -euo pipefail
 cd "$(dirname "${BASH_SOURCE[0]}")/.."
 
-# shellcheck disable=SC1091
-set -a; source .env; set +a
+# .env values may contain spaces, so it is loaded line by line, not sourced.
+# shellcheck source=lib/load-env.sh
+source scripts/lib/load-env.sh
+load_env_file .env
 
 export MSYS_NO_PATHCONV=1
 export MSYS2_ARG_CONV_EXCL='*'

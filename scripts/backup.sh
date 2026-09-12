@@ -49,8 +49,10 @@ while [ $# -gt 0 ]; do
   esac
 done
 
-# shellcheck disable=SC1091
-set -a; source "$ROOT/.env"; set +a
+# .env values may contain spaces, so it is loaded line by line, not sourced.
+# shellcheck source=lib/load-env.sh
+source "$ROOT/scripts/lib/load-env.sh"
+load_env_file "$ROOT/.env"
 export MSYS_NO_PATHCONV=1 MSYS2_ARG_CONV_EXCL='*'
 
 # --- verify mode -------------------------------------------------------------

@@ -15,8 +15,10 @@ if [ ! -f blockchain/genesis/genesis.json ]; then
   exit 1
 fi
 
-# shellcheck disable=SC1091
-set -a; source .env; set +a
+# .env values may contain spaces, so it is loaded line by line, not sourced.
+# shellcheck source=lib/load-env.sh
+source scripts/lib/load-env.sh
+load_env_file .env
 
 if [ -z "${BOOTNODE_ENODE:-}" ]; then
   echo "  ERROR: BOOTNODE_ENODE is empty. Re-run: bash scripts/create-genesis.sh" >&2
