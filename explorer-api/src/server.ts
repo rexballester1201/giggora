@@ -20,7 +20,10 @@ import { env, pool, closePool } from "./db.ts";
 import { ValidationError } from "./validate.ts";
 import { registerRoutes } from "./routes.ts";
 
-const PORT = Number(process.env.API_PORT ?? 4100);
+// env, not process.env alone: env is .env with process.env on top, so
+// `npm run api` on the host can take API_PORT from .env, while a container still
+// gets the port compose sets. Reading process.env alone ignored .env entirely.
+const PORT = Number(env.API_PORT ?? 4100);
 const HOST = process.env.API_HOST ?? "0.0.0.0";
 
 export async function build() {

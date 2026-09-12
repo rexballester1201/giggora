@@ -6,7 +6,12 @@
 # NEXT_PUBLIC_* variables are inlined into the client bundle AT BUILD TIME, not
 # read at runtime. Setting them only in `environment:` produces a page whose
 # server side is configured and whose "Add to MetaMask" button has an undefined
-# chain. They are build args here for that reason.
+# chain. They are build args here for that reason -- and every build arg compose
+# passes must be DECLARED below, because Docker silently drops one that is not.
+# NEXT_PUBLIC_FAUCET_URL and the four NEXT_PUBLIC_CHAIN_* args were missing: the
+# explorer showed its built-in name instead of the configured one, and its
+# Faucet link reached the faucet only because the code's fallback was the same
+# port.
 FROM node:24-alpine AS builder
 
 WORKDIR /app
@@ -15,10 +20,20 @@ ARG NEXT_PUBLIC_API_BASE
 ARG NEXT_PUBLIC_RPC_URL
 ARG NEXT_PUBLIC_EXPLORER_URL
 ARG NEXT_PUBLIC_NETWORK_LABEL
+ARG NEXT_PUBLIC_FAUCET_URL
+ARG NEXT_PUBLIC_CHAIN_NAME
+ARG NEXT_PUBLIC_CHAIN_SYMBOL
+ARG NEXT_PUBLIC_CHAIN_TAGLINE
+ARG NEXT_PUBLIC_CHAIN_DESCRIPTION
 ENV NEXT_PUBLIC_API_BASE=$NEXT_PUBLIC_API_BASE \
     NEXT_PUBLIC_RPC_URL=$NEXT_PUBLIC_RPC_URL \
     NEXT_PUBLIC_EXPLORER_URL=$NEXT_PUBLIC_EXPLORER_URL \
-    NEXT_PUBLIC_NETWORK_LABEL=$NEXT_PUBLIC_NETWORK_LABEL
+    NEXT_PUBLIC_NETWORK_LABEL=$NEXT_PUBLIC_NETWORK_LABEL \
+    NEXT_PUBLIC_FAUCET_URL=$NEXT_PUBLIC_FAUCET_URL \
+    NEXT_PUBLIC_CHAIN_NAME=$NEXT_PUBLIC_CHAIN_NAME \
+    NEXT_PUBLIC_CHAIN_SYMBOL=$NEXT_PUBLIC_CHAIN_SYMBOL \
+    NEXT_PUBLIC_CHAIN_TAGLINE=$NEXT_PUBLIC_CHAIN_TAGLINE \
+    NEXT_PUBLIC_CHAIN_DESCRIPTION=$NEXT_PUBLIC_CHAIN_DESCRIPTION
 
 COPY explorer-web/package.json explorer-web/package-lock.json ./
 RUN npm ci

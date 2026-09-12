@@ -255,9 +255,12 @@ export async function registerRoutes(app: FastifyInstance) {
       `SELECT number, timestamp, gas_used, gas_limit, base_fee_per_gas
          FROM blocks ORDER BY number DESC LIMIT 1`
     );
-    // Bounded: the index makes this 100 rows, not a scan.
+    // Bounded: the index makes this 100 rows, not a scan. Block 0 is left out:
+    // its timestamp is whatever genesis.json says (0x0, 1970, on this devnet),
+    // not when it was produced, so on a chain younger than 100 blocks it turned
+    // the average into years.
     const recent = await query(
-      `SELECT timestamp FROM blocks ORDER BY number DESC LIMIT 100`
+      `SELECT timestamp FROM blocks WHERE number > 0 ORDER BY number DESC LIMIT 100`
     );
 
     let avgBlockTimeSeconds: number | null = null;
