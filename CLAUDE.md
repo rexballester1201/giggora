@@ -61,7 +61,7 @@ blockchain/genesis/                   generated genesis + qbftConfigFile
 blockchain/nodes/                     validator keys + chain data (GITIGNORED)
 contracts/src/                        GigToken, GigNFT, GigMultiToken
 contracts/test/                       Foundry tests (28)
-database/migrations/                  001-004, all idempotent
+database/migrations/                  001-006, all idempotent
 indexer/src/                          crash-safe chain indexer
 explorer-api/src/                     Fastify API
 explorer-web/                         Next.js 15 App Router UI
@@ -212,6 +212,19 @@ Established by testing, not documentation. All three surprised us:
 29. **The sample DApp takes NO network config from the query string.** A
     `?rpc=&chainId=` override was a phishing primitive straight into
     `wallet_addEthereumChain`.
+
+### Found by forking it (2026-09-12)
+
+30. **`.env` cannot be `source`d by bash.** gen-config.mjs writes values
+    unquoted, which is how compose and the Node services read them, and
+    CHAIN_TAGLINE / CHAIN_DESCRIPTION contain spaces. `set -a; source .env`
+    runs the second word as a command and `set -e` kills the script: every
+    fresh clone failed at `create-genesis.sh`. Shell scripts load it with
+    `scripts/lib/load-env.sh`.
+31. **The devnet chain id is config, never a literal.** The guards that decide
+    where a published key may sign read `networks.devnet.chainId` (directly,
+    or as `DEVNET_CHAIN_ID` inside a container). A literal survives a rebrand,
+    and a fork's script pointed at this chain's RPC would then sign here.
 
 ---
 

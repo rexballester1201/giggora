@@ -81,7 +81,7 @@ This project is complete and paused, not abandoned. Before touching anything:
 | `run.bat` / `stop.bat` | Windows: double-click to start or stop the whole stack |
 | **[HANDOVER.md](HANDOVER.md)** | What state this is in, what is unfinished, the decisions still open |
 | **[DEPLOY.md](DEPLOY.md)** | Running it — local, measured hardware specs, production, incidents |
-| **[CLAUDE.md](CLAUDE.md)** | Architecture, conventions, and the 16 gotchas that will otherwise cost you a day |
+| **[CLAUDE.md](CLAUDE.md)** | Architecture, conventions, and the 31 gotchas that will otherwise cost you a day |
 | **[giggora-dossier.html](giggora-dossier.html)** | All three in one offline, printable page (`npm run docs` rebuilds it) |
 
 ---
@@ -89,7 +89,7 @@ This project is complete and paused, not abandoned. Before touching anything:
 ## Prerequisites
 
 - **Docker Desktop**, running
-- **Node.js** 20 or newer
+- **Node.js** 24 or newer (the indexer, API and faucet run TypeScript directly)
 - **Bash** (Git Bash on Windows)
 
 `make` is optional — every target has a script equivalent.
