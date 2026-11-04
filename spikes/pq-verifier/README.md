@@ -30,9 +30,10 @@ Giggora's hardfork, with every other compiler setting unchanged
 ## Run it
 
 ```bash
-bash fetch.sh            # pinned verifier, NIST vectors and noble, each verified
-node make-fixtures.mjs   # 267 cases; every expected verdict cross-checked against NIST and noble
-bash run.sh              # Foundry in the repo's pinned Docker image: verdicts, gas, deployment costs
+bash fetch.sh                # pinned verifier, NIST vectors and noble, each verified
+node make-fixtures.mjs       # 267 cases; every expected verdict cross-checked against NIST and noble
+node make-vault-fixtures.mjs # real signatures for the PQVault integration test
+bash run.sh                  # Foundry in the repo's pinned Docker image: verdicts, gas, deployment costs
 node measure-devnet.mjs  # the same verifier on the live devnet (Besu), cold, as real transactions
 ```
 
@@ -123,6 +124,39 @@ early (from 6,433 gas). A well-formed wrong signature costs a full verification.
 - **On Giggora, gas is not the blocker.** The real gaps are an independent audit,
   validating each key blob when it is registered, and the helper's unreproducible
   origin (below).
+
+## PQVault, end to end
+
+[`contracts/src/pq/PQVault.sol`](../../contracts/src/pq/PQVault.sol) is the vault this
+spike was for. Its logic is unit-tested in the contracts project with a stand-in verifier
+(30 tests in [`contracts/test/PQVault.t.sol`](../../contracts/test/PQVault.t.sol)). Here
+it runs against the real verifier, with real ML-DSA-44 signatures from noble
+([`make-vault-fixtures.mjs`](make-vault-fixtures.mjs),
+[`test/PQVaultIntegration.t.sol`](test/PQVaultIntegration.t.sol)), on chain id 4043.
+All 4 tests pass:
+
+- **The digests noble signed are the ones the contract checks**, for every operation and
+  every key proof. Any off-chain signing tool has to compute them the same way.
+- **A personal vault** (one key) pays once and refuses the replay.
+- **A treasury vault** (2 of 3):
+  - pays with two of its three keys;
+  - rotates to two new keys with threshold 1, each new key proving it can sign;
+  - pays again under the new set.
+- **Real signatures are refused** on another vault, on chain id 4042, and with one bit
+  flipped.
+
+| Measured (Foundry, from the test contract) | Gas | At 1 gwei |
+|---|---:|---:|
+| Deploy a personal vault (1 key proof) | 2,639,850 | 0.0026 GIG |
+| Deploy a treasury vault (3 key proofs) | 5,279,399 | 0.0053 GIG |
+| Execute 1 of 1 (a GIG payment) | 1,370,650 | 0.0014 GIG |
+| Execute 2 of 3 | 2,641,370 | 0.0026 GIG |
+| Rotate keys (2 signatures + 2 proofs) | 5,139,192 | 0.0051 GIG |
+
+An operation costs about 1.23M gas per signature it needs, plus 80,000 to 140,000 for the
+vault and the payment itself. On top of those come the one-time costs: each key's blob
+(4.15M gas) and the shared helper and verifier. The test places key blobs with
+`vm.etch`, so their deployment is not in these figures.
 
 ## Still pending
 

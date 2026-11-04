@@ -59,8 +59,8 @@ one is a defect regardless of what else the change achieves.
 blockchain/config/chain.config.json   SINGLE SOURCE OF TRUTH
 blockchain/genesis/                   generated genesis + qbftConfigFile
 blockchain/nodes/                     validator keys + chain data (GITIGNORED)
-contracts/src/                        GigToken, GigNFT, GigMultiToken
-contracts/test/                       Foundry tests (28)
+contracts/src/                        GigToken, GigNFT, GigMultiToken; pq/PQVault (opt-in, unaudited)
+contracts/test/                       Foundry tests (58)
 database/migrations/                  001-006, all idempotent
 indexer/src/                          crash-safe chain indexer
 explorer-api/src/                     Fastify API
@@ -69,6 +69,7 @@ dapp/                                 dependency-free EIP-1193 sample DApp
 deploy/{validator,rpc,explorer,firewall}/   production topology (NEVER PROVISIONED)
 docs/                                 architecture, deployment, runbooks
 scripts/                              everything operational
+spikes/pq-verifier/                   ML-DSA-44 verifier spike + PQVault integration test
 ```
 
 **`chain.config.json` is the single source of truth.** Everything else is
@@ -270,7 +271,8 @@ Every number measured, not estimated.
 | Suite | Result |
 |---|---|
 | Network acceptance | 7/7 |
-| Contracts (Foundry) | 28/28 + 12/12 on-chain |
+| Contracts (Foundry) | 58/58 (28 token + 30 PQVault) + 12/12 on-chain |
+| ML-DSA verifier on Cancun (spikes/pq-verifier) | 267/267 NIST-derived cases; PQVault end to end 4/4 |
 | Indexer (over 1000 blocks, SIGKILL-tested) | 8/8 |
 | Explorer API | 51/51 |
 | API regressions | 12/12 |
