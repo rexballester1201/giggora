@@ -318,7 +318,7 @@ Foundry (run via Docker — no local install needed) and OpenZeppelin 5.6.1.
 
 ```bash
 bash scripts/setup-contracts.sh      # OpenZeppelin + forge-std (pinned)
-bash scripts/forge.sh test           # 28 unit tests
+bash scripts/forge.sh test           # 58 unit tests
 node scripts/deploy-contracts.mjs    # deploy to devnet + verify on-chain logs
 ```
 
@@ -327,6 +327,7 @@ node scripts/deploy-contracts.mjs    # deploy to devnet + verify on-chain logs
 | `GigToken` | ERC-20 | GTT | Burnable, owner-mintable, 1,000,000 initial supply |
 | `GigNFT` | ERC-721 | GIGNFT | Enumerable + URI storage, so the explorer can list collections |
 | `GigMultiToken` | ERC-1155 | GIGMT | Supply-tracking, plus non-standard `name`/`symbol` for token detection |
+| `PQVault` | — | — | Opt-in post-quantum vault: acts only with its owner's account AND ML-DSA-44 signatures. **Unaudited.** See [spikes/pq-verifier](spikes/pq-verifier/README.md) |
 
 Deployed addresses are recorded in `deployments/<network>.json`.
 

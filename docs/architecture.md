@@ -460,9 +460,9 @@ matters is already exposed. Address hashing buys nothing for active accounts.
   the Ethereum Foundation's PQ hub (March 2026, 10+ client teams, weekly interop
   devnets) cover: `leanXMSS` hash-based signatures replacing BLS for validators;
   `leanVM`, a minimal zkVM aggregating those larger signatures (~250x
-  compression); and **EIP-8141**, account-abstraction *signature agility*, under
-  consideration for the Hegota fork in H2 2026. Initial protocol upgrades are
-  targeted for **2029**.
+  compression); and **EIP-8141**, account-abstraction *signature agility*,
+  scheduled for the Hegotá fork on 2026-08-27, which now targets 2027. Initial
+  protocol upgrades are targeted for **2029**.
 
 ### Decision: inherit, do not invent
 
@@ -488,9 +488,29 @@ validators.
 | Exercise the upgrade mechanism | **Done** — `scripts/test-qbft-transition.mjs`. Any future migration depends on it, and it had never been tested. |
 | Validator key rotation runbook | **Done** — `docs/validator-rotation.md`. Rotation is the one PQ mitigation available to a small permissioned validator set. |
 | Track EIP-8141 / leanXMSS | Ongoing. Watch Besu releases; do nothing bespoke. |
+| Opt-in post-quantum vaults | **Built 2026-11-04, unaudited.** See below. |
 
 **Do not** describe Giggora as quantum-resistant. It is not, and neither is
 Ethereum.
+
+### Update 2026-11-04: opt-in post-quantum vaults
+
+The rule above still holds for transactions: no custom signature scheme, and
+MetaMask is untouched. What changed is that a contract can now verify NIST's
+ML-DSA-44 (FIPS 204) on Giggora's own EVM at a bearable cost. Measured in
+[`spikes/pq-verifier`](../spikes/pq-verifier/README.md): Fireblocks Labs'
+verifier, compiled for Cancun, got all 267 NIST-derived cases right and costs
+about 1.23M gas, roughly 0.0012 GIG, per verification.
+
+[`contracts/src/pq/PQVault.sol`](../contracts/src/pq/PQVault.sol) builds on it.
+It is a contract account that acts only with BOTH its owner's ordinary account
+and `threshold` ML-DSA-44 signatures: one key for a personal vault, 2 of 3 for a
+treasury. A quantum computer gets the first factor only; a verifier bug gets the
+second only.
+
+That protects what is inside a vault. It does **not** make Giggora
+quantum-resistant. Validators and every ordinary account remain secp256k1, and
+neither the verifier nor the vault has been audited.
 
 ---
 

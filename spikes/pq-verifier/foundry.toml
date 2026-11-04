@@ -1,0 +1,38 @@
+# Giggora PQ-verifier spike.
+#
+# Fireblocks' ML-DSA-44 verifier compiled for GIGGORA'S EVM. Its own repo targets
+# Osaka; Giggora runs Cancun (blockchain/config/chain.config.json -> genesis.hardfork),
+# so evm_version is the one deliberate change. Every other compiler setting matches
+# vendor/evm-ml-dsa-verifier/foundry.toml, so gas stays comparable to its published
+# 1,226,311.
+#
+# Unlike that repo, nothing here may shell out (ffi = false) and the tests can read
+# only the fixtures that make-fixtures.mjs wrote.
+
+[profile.default]
+src = "vendor/evm-ml-dsa-verifier/src"
+test = "test"
+out = "out"
+# Not "cache": that folder holds the NIST vectors, and `forge clean` deletes cache_path.
+cache_path = "forge-cache"
+libs = ["vendor/evm-ml-dsa-verifier/lib"]
+remappings = [
+    "forge-std/=vendor/evm-ml-dsa-verifier/lib/forge-std/src/",
+    # PQVault comes straight from the contracts project; see allow_paths below.
+    "giggora-pq/=../../contracts/src/pq/",
+]
+
+solc_version = "0.8.30"
+evm_version = "cancun"
+optimizer = true
+optimizer_runs = 10000
+via_ir = true
+
+ffi = false
+fs_permissions = [{ access = "read", path = "./fixtures" }]
+# test/PQVaultIntegration.t.sol compiles the vault straight from the contracts project.
+allow_paths = ["../../contracts"]
+
+# One test runs ~250 verifications (about 1.2M gas each) and decodes ~2 MB of fixtures.
+gas_limit = 9223372036854775807
+gas_reports = ["MLDSA44Verifier", "PQVault"]
