@@ -1,0 +1,10 @@
+{
+  "name": "giggora-pq-verifier-spike",
+  "private": true,
+  "type": "module",
+  "description": "Spike: does Fireblocks' ML-DSA-44 verifier run correctly on Giggora's Cancun EVM, and what does it cost?",
+  "license": "MIT",
+  "dependencies": {
+    "@noble/post-quantum": "0.7.1"
+  }
+}
